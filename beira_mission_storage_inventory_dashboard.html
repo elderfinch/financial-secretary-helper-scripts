@@ -1,0 +1,917 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Beira Mission — Storage Inventory Dashboard</title>
+
+  <!-- DaisyUI + Tailwind (provided by user) -->
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+
+  <!-- Font Awesome -->
+  <script src="https://kit.fontawesome.com/PLACEHOLDER_KIT.js" crossorigin="anonymous"></script>
+  <!-- replace PLACEHOLDER_KIT with your Font Awesome kit ID if you have one,
+       otherwise you can add the CSS link from Font Awesome CDN. -->
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <style>
+    html,body,#app{height:100%}
+    .scroll-y{overflow-y:auto}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,'Roboto Mono',monospace}
+    .small{font-size:.85rem}
+    .fab{position:fixed;right:1rem;bottom:1.25rem;z-index:60}
+    .sync-icon.spin{animation:spin 1.2s linear infinite}
+    @keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+  </style>
+</head>
+
+<body class="bg-base-200 text-base-content" id="app">
+  <div class="min-h-screen flex flex-col">
+
+    <!-- HEADER -->
+    <header class="navbar bg-base-100 shadow-md px-3 md:px-6">
+      <div class="flex-1">
+        <a class="btn btn-ghost normal-case text-xl">Beira Mission — Storage Inventory</a>
+        <span class="ml-3 badge">The Church of Jesus Christ of Latter-day Saints</span>
+      </div>
+
+      <div class="flex-none gap-2">
+        <div class="hidden md:flex items-center gap-2">
+          <select id="lang" class="select select-sm">
+            <option value="en">English</option>
+            <option value="pt">Português</option>
+          </select>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <div id="syncIconWrap" class="hidden items-center gap-2">
+            <i id="syncIcon" class="fa-solid fa-sync-alt sync-icon"></i>
+            <span id="syncLabel" class="small opacity-70">Local only</span>
+          </div>
+
+          <div class="dropdown dropdown-end">
+            <label tabindex="0" class="btn btn-ghost btn-circle">⚙️</label>
+            <ul tabindex="0" class="dropdown-content menu p-2 shadow bg-base-100 rounded-box w-56">
+              <li><a id="downloadCSV">Download CSV</a></li>
+              <li><a id="openImportTab">Open Import/Export</a></li>
+              <li><a id="clearLocal">Clear Local Data</a></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- MAIN -->
+    <main class="flex-1 p-4 md:p-6 scroll-y">
+      <div class="max-w-7xl mx-auto">
+
+        <!-- Tabs -->
+        <div class="tabs tabs-boxed mb-4">
+          <a class="tab tab-active" data-tab="inventory">Inventory</a>
+          <a class="tab" data-tab="reports">Reports</a>
+          <a class="tab" data-tab="import">Import/Export</a>
+          <a class="tab" data-tab="sync">Sync</a>
+        </div>
+
+        <!-- TAB PANELS -->
+        <div id="tab-inventory" class="tab-panel">
+          <div class="grid gap-4 md:grid-cols-3 mb-4">
+
+            <!-- Quick Add / Filters -->
+            <section class="card bg-base-100 shadow col-span-1">
+              <div class="card-body p-3">
+                <h2 class="card-title">Quick Add</h2>
+                <p class="small text-sm opacity-70">Mobile-first rapid adding</p>
+                <div class="divider my-2"></div>
+
+                <form id="quickForm" class="space-y-2">
+                  <div class="grid grid-cols-3 gap-2">
+                    <select id="quickType" class="select select-bordered col-span-2">
+                      <option value="garment">Garment</option>
+                      <option value="box">Box</option>
+                      <option value="individual" selected>Individual</option>
+                    </select>
+                    <input id="quickQty" type="number" min="1" value="1" class="input input-bordered" placeholder="Qty" />
+                  </div>
+
+                  <input id="quickName" class="input input-bordered w-full" placeholder="name (e.g., 'Men Shirt M')" />
+
+                  <div id="garmentFields" class="hidden space-y-2">
+                    <div class="grid grid-cols-3 gap-2">
+                      <select id="gSize" class="select select-bordered">
+                        <option value="XS">XS</option><option value="S">S</option><option value="M" selected>M</option>
+                        <option value="L">L</option><option value="XL">XL</option><option value="2XL">2XL</option>
+                      </select>
+                      <select id="gFit" class="select select-bordered">
+                        <option value="long">Long</option><option value="normal" selected>Normal</option><option value="short">Short</option>
+                      </select>
+                      <input id="gLength" class="input input-bordered" placeholder="Length (e.g. regular)" />
+                    </div>
+                    <input id="gType" class="input input-bordered" placeholder="Type (e.g., shirt, pants)" />
+                  </div>
+
+                  <div id="boxFields" class="hidden space-y-2">
+                    <div class="grid grid-cols-2 gap-2">
+                      <input id="itemsPerBox" type="number" min="1" class="input input-bordered" placeholder="Items per box" />
+                      <div class="flex items-center gap-2">
+                        <input id="partialBox" type="checkbox" class="checkbox" />
+                        <label class="small">Partial box</label>
+                      </div>
+                    </div>
+                    <input id="boxCountPartial" type="number" min="0" class="input input-bordered" placeholder="Items in partial box" />
+                  </div>
+
+                  <div class="flex gap-2">
+                    <button type="button" id="addQuickBtn" class="btn btn-primary btn-block">Add</button>
+                    <button type="button" id="addQuickBatchBtn" class="btn btn-ghost">+ Multi</button>
+                  </div>
+                </form>
+
+                <div class="divider my-2"></div>
+                <small class="opacity-70">Tip: +Multi accepts comma-separated items like <span class="mono">Shirt M, Pants L, BOM x10</span></small>
+              </div>
+            </section>
+
+            <!-- Stats -->
+            <section class="card bg-base-100 shadow col-span-1">
+              <div class="card-body p-3">
+                <h2 class="card-title">Summary</h2>
+                <div class="divider my-2"></div>
+                <div class="grid grid-cols-1 gap-2">
+                  <div class="stat bg-base-200 p-3 rounded-lg">
+                    <div class="stat-title">Total SKUs</div>
+                    <div id="statSKUs" class="stat-value text-lg">0</div>
+                  </div>
+                  <div class="stat bg-base-200 p-3 rounded-lg">
+                    <div class="stat-title">Total Items</div>
+                    <div id="statItems" class="stat-value text-lg">0</div>
+                  </div>
+                  <div class="stat bg-base-200 p-3 rounded-lg">
+                    <div class="stat-title">Garments</div>
+                    <div id="statGarments" class="stat-value text-lg">0</div>
+                  </div>
+                </div>
+
+                <div class="divider my-2"></div>
+                <div class="space-y-1">
+                  <button id="downloadReportCSV" class="btn btn-sm btn-outline w-full">Export Low-stock</button>
+                  <button id="lowStockReport" class="btn btn-sm btn-ghost w-full">Show low (<5)</button>
+                </div>
+              </div>
+            </section>
+
+            <!-- Bulk actions / search -->
+            <section class="card bg-base-100 shadow col-span-1">
+              <div class="card-body p-3">
+                <h2 class="card-title">Search / Bulk</h2>
+                <div class="divider my-2"></div>
+                <input id="search" class="input input-bordered input-sm w-full" placeholder="Search name, type, note..." />
+                <div class="flex gap-2 mt-3">
+                  <select id="filterType" class="select select-sm w-1/2">
+                    <option value="all">All types</option>
+                    <option value="garment">Garment</option>
+                    <option value="box">Box</option>
+                    <option value="individual">Individual</option>
+                  </select>
+                  <select id="sortBy" class="select select-sm w-1/2">
+                    <option value="newest">Newest</option>
+                    <option value="name">Name</option>
+                    <option value="qtyDesc">Qty ↓</option>
+                    <option value="qtyAsc">Qty ↑</option>
+                  </select>
+                </div>
+
+                <div class="divider my-2"></div>
+                <div class="overflow-x-auto">
+                  <table class="table table-compact w-full">
+                    <thead>
+                      <tr><th></th><th>Name</th><th>Type</th><th>Qty</th><th>Details</th><th class="text-right">Actions</th></tr>
+                    </thead>
+                    <tbody id="inventoryTable"></tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+
+          </div>
+        </div>
+
+        <!-- Reports tab -->
+        <div id="tab-reports" class="hidden">
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="card bg-base-100 shadow p-3">
+              <h3 class="font-semibold mb-2">Stock by Category</h3>
+              <canvas id="chartCategory" height="180"></canvas>
+            </div>
+            <div class="card bg-base-100 shadow p-3">
+              <h3 class="font-semibold mb-2">Garment Size Distribution</h3>
+              <canvas id="chartSizes" height="180"></canvas>
+            </div>
+            <div class="card bg-base-100 shadow p-3 md:col-span-2">
+              <h3 class="font-semibold mb-2">Low Stock Items</h3>
+              <div id="lowList" class="text-sm"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Import/Export tab -->
+        <div id="tab-import" class="hidden">
+          <div class="card bg-base-100 shadow p-3">
+            <h3 class="font-semibold">Bulk Import / Export</h3>
+            <p class="small opacity-70">Paste CSV to bulk add or edit. Download current inventory as CSV.</p>
+            <textarea id="bulkCSV" rows="8" class="textarea textarea-bordered w-full mt-2" placeholder="name,type,quantity,itemsPerBox,partialBox,partialCount,size,fit,length,typeTag,note&#10;Book of Mormon,box,5,10,false,0,,,,,"></textarea>
+            <div class="mt-2 flex gap-2">
+              <button id="parseBulk" class="btn btn-primary">Parse & Import</button>
+              <button id="exportCSV" class="btn btn-outline">Export Inventory</button>
+              <button id="downloadCSV2" class="btn btn-ghost">Download CSV</button>
+            </div>
+            <div class="mt-3 text-xs opacity-60">Columns: name,type,quantity,itemsPerBox,partialBox(true/false),partialCount,size,fit,length,typeTag,note</div>
+          </div>
+        </div>
+
+        <!-- Sync tab -->
+        <div id="tab-sync" class="hidden">
+          <div class="card bg-base-100 shadow p-3">
+            <h3 class="font-semibold">Sync (Google Sheets)</h3>
+            <div class="divider"></div>
+
+            <div id="gSignWrap" class="flex gap-2 items-center">
+              <button id="gSign" class="btn btn-primary"><i class="fa-brands fa-google mr-2"></i>Sign in with Google</button>
+              <div id="gStatus" class="small opacity-70">Not signed in</div>
+            </div>
+
+            <div class="mt-3 space-y-2">
+              <button id="enableSync" class="btn btn-outline">Enable Sync (create sheet)</button>
+              <button id="forceSync" class="btn btn-ghost"><i id="forceSyncIcon" class="fa-solid fa-sync-alt"></i> Force Resync</button>
+            </div>
+
+            <div class="divider"></div>
+            <div>
+              <div class="small opacity-70">Linked Sheet: <span id="sheetInfo">None</span></div>
+            </div>
+
+            <div class="divider"></div>
+            <div class="text-xs opacity-60">Notes: This app uses Google Sheets as the central store when signed in. LocalStorage is used for offline caching.</div>
+          </div>
+        </div>
+
+      </div>
+    </main>
+
+    <!-- Floating Add Button -->
+    <div class="fab">
+      <button id="openAddModal" class="btn btn-circle btn-primary btn-lg shadow-lg"><i class="fa-solid fa-plus"></i></button>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer footer-center p-4 bg-base-300 text-base-content">
+      <div>
+        <p class="small">Made for Beira Mozambique Mission — mobile-first inventory.</p>
+        <p class="small opacity-60">Local storage with optional Google Sheets sync.</p>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Modal: Add / Edit -->
+  <div id="modalAdd" class="modal">
+    <div class="modal-box">
+      <h3 id="modalTitle" class="font-bold text-lg">Add Item</h3>
+      <form id="modalForm" class="space-y-3 mt-3">
+        <input id="mId" type="hidden" />
+        <div class="grid grid-cols-3 gap-2">
+          <select id="mType" class="select select-bordered col-span-2">
+            <option value="garment">Garment</option>
+            <option value="box">Box</option>
+            <option value="individual">Individual</option>
+          </select>
+          <input id="mQty" type="number" min="0" value="1" class="input input-bordered" />
+        </div>
+        <input id="mName" class="input input-bordered w-full" placeholder="Name" required />
+        <!-- garment -->
+        <div id="mGarment" class="hidden">
+          <div class="grid grid-cols-3 gap-2">
+            <select id="mSize" class="select select-bordered">
+              <option>XS</option><option>S</option><option selected>M</option><option>L</option><option>XL</option><option>2XL</option>
+            </select>
+            <select id="mFit" class="select select-bordered">
+              <option>long</option><option selected>normal</option><option>short</option>
+            </select>
+            <input id="mLength" class="input input-bordered" placeholder="Length (optional)" />
+          </div>
+          <input id="mTypeTag" class="input input-bordered" placeholder="Type tag (shirt, pants)" />
+        </div>
+        <!-- box -->
+        <div id="mBox" class="hidden">
+          <div class="grid grid-cols-2 gap-2">
+            <input id="mItemsPerBox" type="number" min="1" class="input input-bordered" placeholder="Items per box" />
+            <div class="flex items-center gap-2"><input id="mPartialBox" type="checkbox" class="checkbox" /><label class="small">Partial box</label></div>
+          </div>
+          <input id="mPartialCount" type="number" min="0" class="input input-bordered" placeholder="Items in partial box" />
+        </div>
+        <!-- note -->
+        <input id="mNote" class="input input-bordered" placeholder="Note (optional)" />
+        <div class="modal-action">
+          <button type="button" id="modalCancel" class="btn">Cancel</button>
+          <button type="submit" id="modalSave" class="btn btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toasts (DaisyUI) -->
+  <div id="toasts" class="fixed right-4 bottom-24 z-50 space-y-2"></div>
+
+  <!-- Google API -->
+  <script src="https://apis.google.com/js/api.js"></script>
+
+  <script>
+  /*
+    Beira Mission Inventory Dashboard — Single-file app
+    - Replace CLIENT_ID and API_KEY below with values from your Google Cloud Console.
+    - Enable the Google Sheets API in your Google project.
+    - The app will create a sheet called "Beira Mission Storage Inventory" when you press Enable Sync.
+    - Sync triggers on local changes (add/edit/delete) and on manual resync.
+  */
+
+  // ====== CONFIG - set these before using Google sync ======
+  const CLIENT_ID = ''; // <-- put your OAuth client ID (web app) here
+  const API_KEY   = ''; // <-- put your API key here
+  const SCOPES = 'https://www.googleapis.com/auth/spreadsheets';
+
+  // ====== App state ======
+  const APP_KEY = 'beira_mission_inventory_v2';
+  let state = { items: [], lastId: 0, sheetId: null, useSync: false, lang: 'en' };
+  let googleInited = false;
+  let gapiSignedIn = false;
+  let syncing = false;
+
+  // ====== Helper: toasts ======
+  function toast(msg, kind='info', timeout=4000){
+    const wrap = document.getElementById('toasts');
+    const el = document.createElement('div');
+    el.className = 'alert shadow-lg ' + (kind==='error'?'alert-error':'alert-success');
+    el.innerHTML = '<div><span>' + msg + '</span></div>';
+    wrap.appendChild(el);
+    setTimeout(()=> el.remove(), timeout);
+  }
+
+  // ====== Storage ======
+  function saveState(){
+    localStorage.setItem(APP_KEY, JSON.stringify(state));
+    renderAll();
+    // auto-sync if signed in
+    if(state.useSync && gapiSignedIn) syncToSheet();
+  }
+  function loadState(){
+    const raw = localStorage.getItem(APP_KEY);
+    if(raw) { try { state = JSON.parse(raw); } catch(e){ console.error('load error', e); } }
+  }
+
+  // ====== CSV helpers ======
+  function inventoryToCSVString(){
+    const headers = ['id','name','type','quantity','itemsPerBox','partialBox','partialCount','size','fit','length','typeTag','note'];
+    const rows = state.items.map(it => headers.map(h => JSON.stringify(it[h] ?? '')).join(','));
+    return headers.join(',') + '\\n' + rows.join('\\n');
+  }
+  function downloadCSV(filename, csv){
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=> URL.revokeObjectURL(url), 1500);
+  }
+
+  // ====== ID helper ======
+  function uid(){
+    state.lastId = (state.lastId || 0) + 1;
+    return state.lastId;
+  }
+
+  // ====== Compute quantities ======
+  function computeQty(it){
+    if(it.type === 'box'){
+      const p = Number(it.itemsPerBox)||0;
+      const q = Number(it.quantity)||0;
+      const partial = it.partialBox ? Number(it.partialCount)||0 : 0;
+      return (p * q) + partial;
+    }
+    return Number(it.quantity)||0;
+  }
+
+  // ====== Render functions ======
+  function renderAll(){
+    renderStats();
+    renderTable();
+    renderReports();
+    updateSyncUI();
+  }
+
+  function renderStats(){
+    document.getElementById('statSKUs').innerText = state.items.length;
+    document.getElementById('statItems').innerText = state.items.reduce((s,it)=> s + computeQty(it), 0);
+    document.getElementById('statGarments').innerText = state.items.filter(i=>i.type==='garment').length;
+  }
+
+  function detailsForRow(it){
+    if(it.type==='garment') return `Size: ${it.size||''} • Fit: ${it.fit||''} • ${it.length||''} • ${it.typeTag||''}`;
+    if(it.type==='box') return `Per box: ${it.itemsPerBox||''} • Boxes: ${it.quantity||0} • Partial: ${it.partialBox?it.partialCount:0}`;
+    return it.note||'';
+  }
+
+  function typeIcon(type){ if(type==='garment') return '👕'; if(type==='box') return '📦'; return '📌'; }
+
+  function escapeHtml(s=''){ return (s+'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  function renderTable(){
+    const tbody = document.getElementById('inventoryTable');
+    const q = (document.getElementById('search')?.value || '').toLowerCase();
+    const ft = document.getElementById('filterType')?.value || 'all';
+    const sortBy = document.getElementById('sortBy')?.value || 'newest';
+    let rows = state.items.slice();
+
+    if(ft !== 'all') rows = rows.filter(r => r.type === ft);
+    if(q) rows = rows.filter(r => (r.name||'').toLowerCase().includes(q) || (r.note||'').toLowerCase().includes(q));
+    if(sortBy === 'name') rows.sort((a,b)=> (a.name||'').localeCompare(b.name||''));
+    if(sortBy === 'qtyDesc') rows.sort((a,b) => computeQty(b) - computeQty(a));
+    if(sortBy === 'qtyAsc') rows.sort((a,b) => computeQty(a) - computeQty(b));
+    if(sortBy === 'newest') rows.sort((a,b) => (b.id || 0) - (a.id || 0));
+
+    tbody.innerHTML = rows.map(it => {
+      return `<tr data-id="${it.id}">
+        <td><div class="avatar"><div class="w-8 h-8 rounded bg-base-200 flex items-center justify-center">${typeIcon(it.type)}</div></div></td>
+        <td><div class="font-semibold">${escapeHtml(it.name)}</div><div class="text-xs opacity-60">${escapeHtml(it.typeTag||'')}</div></td>
+        <td>${escapeHtml(it.type)}</td>
+        <td>${computeQty(it)}</td>
+        <td class="small">${escapeHtml(detailsForRow(it))}</td>
+        <td class="text-right"><div class="btn-group">
+          <button class="btn btn-xs btn-ghost editBtn"><i class="fa-solid fa-pen-to-square"></i></button>
+          <button class="btn btn-xs btn-error deleteBtn"><i class="fa-solid fa-trash"></i></button>
+        </div></td>
+      </tr>`;
+    }).join('');
+
+    // events for edit/delete
+    tbody.querySelectorAll('.editBtn').forEach(b => b.addEventListener('click', e => {
+      const id = e.target.closest('tr').dataset.id; openEditModal(id);
+    }));
+    tbody.querySelectorAll('.deleteBtn').forEach(b => b.addEventListener('click', e => {
+      const id = e.target.closest('tr').dataset.id;
+      if(confirm('Delete this item?')) { state.items = state.items.filter(i=>i.id!=id); saveAndSync(); toast('Deleted', 'success'); }
+    }));
+  }
+
+  // ====== Reports/Charts ======
+  let chartCategory = null, chartSizes = null;
+  function renderReports(){
+    // Category totals
+    const totals = {garment:0, box:0, individual:0};
+    state.items.forEach(it => {
+      if(it.type === 'box') totals.box += computeQty(it);
+      else if(it.type === 'garment') totals.garment += computeQty(it);
+      else totals.individual += computeQty(it);
+    });
+
+    // Garment size distribution
+    const sizes = {XS:0,S:0,M:0,L:0,XL:0,'2XL':0};
+    state.items.filter(i=>i.type==='garment').forEach(g => {
+      sizes[g.size || 'M'] = (sizes[g.size || 'M'] || 0) + (Number(g.quantity)||0);
+    });
+
+    // render chartCategory
+    const ctxC = document.getElementById('chartCategory');
+    if(ctxC){
+      const data = {
+        labels: ['Garments','Boxes','Individual'],
+        datasets: [{ label: 'Items', data: [totals.garment, totals.box, totals.individual], backgroundColor: ['#60a5fa','#34d399','#fbbf24'] }]
+      };
+      if(chartCategory) { chartCategory.data = data; chartCategory.update(); }
+      else { chartCategory = new Chart(ctxC, { type: 'bar', data, options:{responsive:true,maintainAspectRatio:false} }); }
+    }
+
+    // render chartSizes
+    const ctxS = document.getElementById('chartSizes');
+    if(ctxS){
+      const data = { labels: Object.keys(sizes), datasets: [{ label: 'Garment count', data: Object.values(sizes), backgroundColor: ['#60a5fa','#93c5fd','#bfdbfe','#60a5fa','#34d399','#7dd3fc'] }]};
+      if(chartSizes){ chartSizes.data = data; chartSizes.update(); }
+      else { chartSizes = new Chart(ctxS, { type: 'pie', data, options:{responsive:true,maintainAspectRatio:false} }); }
+    }
+
+    // low list
+    const low = state.items.filter(i => computeQty(i) < 5).slice(0,50);
+    const lowList = document.getElementById('lowList');
+    if(lowList) lowList.innerHTML = low.length ? low.map(l=>`<div class="py-1">${escapeHtml(l.name)} — ${computeQty(l)} (${l.type})</div>`).join('') : '<div class="opacity-70">No low-stock items</div>';
+  }
+
+  // ====== Modal Add/Edit ======
+  function openAddModal(){
+    document.getElementById('modalTitle').innerText = 'Add Item';
+    document.getElementById('mId').value = '';
+    document.getElementById('mType').value = 'individual';
+    document.getElementById('mQty').value = 1;
+    document.getElementById('mName').value = '';
+    document.getElementById('mNote').value = '';
+    document.getElementById('mGarment').classList.add('hidden');
+    document.getElementById('mBox').classList.add('hidden');
+    // show modal
+    document.getElementById('modalAdd').classList.add('modal-open');
+  }
+
+  function openEditModal(id){
+    const it = state.items.find(x => x.id == id);
+    if(!it) return;
+    document.getElementById('modalTitle').innerText = 'Edit Item';
+    document.getElementById('mId').value = it.id;
+    document.getElementById('mType').value = it.type;
+    document.getElementById('mQty').value = it.quantity || 0;
+    document.getElementById('mName').value = it.name || '';
+    document.getElementById('mNote').value = it.note || '';
+
+    if(it.type === 'garment'){
+      document.getElementById('mGarment').classList.remove('hidden');
+      document.getElementById('mBox').classList.add('hidden');
+      document.getElementById('mSize').value = it.size || 'M';
+      document.getElementById('mFit').value = it.fit || 'normal';
+      document.getElementById('mLength').value = it.length || '';
+      document.getElementById('mTypeTag').value = it.typeTag || '';
+    } else if(it.type === 'box'){
+      document.getElementById('mBox').classList.remove('hidden');
+      document.getElementById('mGarment').classList.add('hidden');
+      document.getElementById('mItemsPerBox').value = it.itemsPerBox || '';
+      document.getElementById('mPartialBox').checked = !!it.partialBox;
+      document.getElementById('mPartialCount').value = it.partialCount || 0;
+    } else {
+      document.getElementById('mGarment').classList.add('hidden');
+      document.getElementById('mBox').classList.add('hidden');
+    }
+    document.getElementById('modalAdd').classList.add('modal-open');
+  }
+
+  function closeModal(){
+    document.getElementById('modalAdd').classList.remove('modal-open');
+  }
+
+  // modal interactions
+  document.getElementById('openAddModal').addEventListener('click', openAddModal);
+  document.getElementById('modalCancel').addEventListener('click', closeModal);
+  document.getElementById('mType').addEventListener('change', (e)=>{
+    const t = e.target.value;
+    document.getElementById('mGarment').classList.toggle('hidden', t!=='garment');
+    document.getElementById('mBox').classList.toggle('hidden', t!=='box');
+  });
+
+  document.getElementById('modalForm').addEventListener('submit', (ev)=>{
+    ev.preventDefault();
+    const id = document.getElementById('mId').value;
+    const type = document.getElementById('mType').value;
+    const qty = Number(document.getElementById('mQty').value) || 0;
+    const name = document.getElementById('mName').value.trim() || 'Unnamed';
+    const base = { id: id || uid(), name, type, quantity: qty };
+
+    if(type === 'garment'){
+      base.size = document.getElementById('mSize').value;
+      base.fit = document.getElementById('mFit').value;
+      base.length = document.getElementById('mLength').value;
+      base.typeTag = document.getElementById('mTypeTag').value;
+    }
+    if(type === 'box'){
+      base.itemsPerBox = Number(document.getElementById('mItemsPerBox').value) || 0;
+      base.partialBox = document.getElementById('mPartialBox').checked;
+      base.partialCount = Number(document.getElementById('mPartialCount').value) || 0;
+    }
+    base.note = document.getElementById('mNote').value || '';
+
+    // add or update
+    const existingIndex = state.items.findIndex(i=>i.id == base.id);
+    if(existingIndex >= 0) state.items[existingIndex] = base;
+    else state.items.unshift(base);
+
+    saveAndSync();
+    closeModal();
+    toast('Saved', 'success');
+  });
+
+  // Quick add handlers
+  document.getElementById('quickType').addEventListener('change', (e)=>{
+    const t = e.target.value;
+    document.getElementById('garmentFields').classList.toggle('hidden', t!=='garment');
+    document.getElementById('boxFields').classList.toggle('hidden', t!=='box');
+  });
+
+  document.getElementById('addQuickBtn').addEventListener('click', ()=>{
+    const type = document.getElementById('quickType').value;
+    const qty = Number(document.getElementById('quickQty').value) || 1;
+    const name = document.getElementById('quickName').value.trim() || 'Unnamed';
+    const base = { id: uid(), name, type, quantity: qty };
+    if(type === 'garment'){
+      base.size = document.getElementById('gSize').value;
+      base.fit = document.getElementById('gFit').value;
+      base.length = document.getElementById('gLength').value;
+      base.typeTag = document.getElementById('gType').value;
+    }
+    if(type === 'box'){
+      base.itemsPerBox = Number(document.getElementById('itemsPerBox').value) || 0;
+      base.partialBox = document.getElementById('partialBox').checked;
+      base.partialCount = Number(document.getElementById('boxCountPartial').value) || 0;
+    }
+    state.items.unshift(base);
+    saveAndSync();
+    document.getElementById('quickName').value = '';
+  });
+
+  document.getElementById('addQuickBatchBtn').addEventListener('click', ()=>{
+    const raw = document.getElementById('quickName').value.trim();
+    if(!raw){ alert('Type a comma-separated list like: Shirt M, Pants L, BOM x10'); return; }
+    const parts = raw.split(',').map(p=>p.trim()).filter(Boolean);
+    parts.forEach(p => {
+      const m = p.match(/^(.*) x?(\\d+)$/i);
+      let qty = 1, name = p;
+      if(m){ name = m[1].trim(); qty = Number(m[2]); }
+      state.items.unshift({ id: uid(), name, type: 'individual', quantity: qty });
+    });
+    saveAndSync();
+    document.getElementById('quickName').value = '';
+  });
+
+  // Bulk import/export
+  function parseCSV(text){
+    const lines = text.split('\\n').map(l=>l.trim()).filter(Boolean);
+    if(lines.length === 0) return [];
+    const header = lines[0].split(',').map(h=>h.trim());
+    const out = [];
+    for(let i=1;i<lines.length;i++){
+      const cells = lines[i].split(',').map(c=>c.trim().replace(/^\"|\"$/g,''));
+      const obj = {};
+      for(let j=0;j<header.length;j++) obj[header[j]] = cells[j] ?? '';
+      out.push(obj);
+    }
+    return out;
+  }
+
+  document.getElementById('parseBulk').addEventListener('click', ()=>{
+    const text = document.getElementById('bulkCSV').value.trim();
+    if(!text){ alert('Paste CSV first'); return; }
+    const parsed = parseCSV(text);
+    parsed.forEach(r => {
+      state.items.unshift({
+        id: uid(),
+        name: r.name || 'Unnamed',
+        type: r.type || 'individual',
+        quantity: Number(r.quantity)||0,
+        itemsPerBox: Number(r.itemsPerBox)||0,
+        partialBox: (r.partialBox === 'true' || r.partialBox === true),
+        partialCount: Number(r.partialCount)||0,
+        size: r.size||'', fit: r.fit||'', length: r.length||'', typeTag: r.typeTag||'', note: r.note||''
+      });
+    });
+    saveAndSync();
+    toast(parsed.length + ' rows imported', 'success');
+  });
+
+  document.getElementById('exportCSV').addEventListener('click', ()=> downloadCSV('inventory.csv', inventoryToCSVString()));
+  document.getElementById('downloadCSV').addEventListener('click', ()=> downloadCSV('inventory.csv', inventoryToCSVString()));
+  document.getElementById('downloadCSV2').addEventListener('click', ()=> downloadCSV('inventory.csv', inventoryToCSVString()));
+
+  // search / sort / filters
+  document.getElementById('search').addEventListener('input', renderTable);
+  document.getElementById('filterType').addEventListener('change', renderTable);
+  document.getElementById('sortBy').addEventListener('change', renderTable);
+
+  // low stock report
+  document.getElementById('lowStockReport').addEventListener('click', ()=>{
+    const low = state.items.filter(i => computeQty(i) < 5);
+    if(low.length===0) { alert('No low stock items'); return; }
+    alert('Low stock:\\n' + low.map(l=>`${l.name} — ${computeQty(l)}`).join('\\n'));
+  });
+
+  document.getElementById('downloadReportCSV').addEventListener('click', ()=>{
+    const low = state.items.filter(i => computeQty(i) < 5).map(i => ({id:i.id, name:i.name, qty:computeQty(i)}));
+    let csv = 'id,name,qty\\n' + low.map(r => [r.id, `"${r.name.replace(/"/g,'""')}"`, r.qty].join(',')).join('\\n');
+    downloadCSV('low_stock_report.csv', csv);
+  });
+
+  // clear local
+  document.getElementById('clearLocal').addEventListener('click', ()=>{
+    if(confirm('Clear local inventory? This cannot be undone.')){
+      localStorage.removeItem(APP_KEY);
+      state = { items: [], lastId: 0, sheetId: null, useSync: false, lang: state.lang };
+      renderAll();
+      toast('Local data cleared', 'success');
+    }
+  });
+
+  // Tab navigation
+  document.querySelectorAll('.tabs .tab').forEach(tab => tab.addEventListener('click', (e)=>{
+    document.querySelectorAll('.tabs .tab').forEach(t => t.classList.remove('tab-active'));
+    e.target.classList.add('tab-active');
+    const which = e.target.dataset.tab;
+    document.querySelectorAll('[id^="tab-"]').forEach(p=>p.classList.add('hidden'));
+    document.getElementById('tab-' + which).classList.remove('hidden');
+    if(which === 'reports') renderReports();
+    if(which === 'import') { /* focus textarea */ document.getElementById('bulkCSV').focus(); }
+  }));
+  document.getElementById('openImportTab').addEventListener('click', ()=> {
+    document.querySelectorAll('.tabs .tab').forEach(t => t.classList.remove('tab-active'));
+    document.querySelector('.tabs .tab[data-tab="import"]').classList.add('tab-active');
+    document.querySelectorAll('[id^="tab-"]').forEach(p=>p.classList.add('hidden'));
+    document.getElementById('tab-import').classList.remove('hidden');
+  });
+
+  // ====== Google API Integration ======
+  // Note: You must set CLIENT_ID and API_KEY variables above.
+  function initGapi(){
+    if(!CLIENT_ID || !API_KEY) { console.log('Google credentials not set'); return; }
+    gapi.load('client:auth2', async () => {
+      try{
+        await gapi.client.init({ apiKey: API_KEY, clientId: CLIENT_ID, discoveryDocs: ["https://sheets.googleapis.com/$discovery/rest?version=v4"], scope: SCOPES });
+        googleInited = true;
+        const auth = gapi.auth2.getAuthInstance();
+        gapiSignedIn = auth.isSignedIn.get();
+        auth.isSignedIn.listen(s => { gapiSignedIn = s; updateGoogleSignedInStatus(); });
+        updateGoogleSignedInStatus();
+      } catch(e){ console.error('gapi init err', e); }
+    });
+  }
+
+  function updateGoogleSignedInStatus(){
+    document.getElementById('gStatus').innerText = gapiSignedIn ? 'Signed in' : 'Not signed in';
+    document.getElementById('gSign').innerText = gapiSignedIn ? 'Sign out' : 'Sign in with Google';
+    document.getElementById('gSign').classList.toggle('btn-error', gapiSignedIn);
+    document.getElementById('syncIconWrap').classList.toggle('hidden', !gapiSignedIn && !state.useSync);
+    if(!gapiSignedIn){ state.useSync = false; document.getElementById('sheetInfo').innerText = 'None'; updateSyncUI(); }
+    if(gapiSignedIn && state.useSync) syncToSheet();
+  }
+
+  document.getElementById('gSign').addEventListener('click', async ()=>{
+    if(!googleInited) { initGapi(); toast('Google API not initialized. Make sure CLIENT_ID and API_KEY are set.', 'error'); return; }
+    const auth = gapi.auth2.getAuthInstance();
+    if(!gapiSignedIn) {
+      try{ await auth.signIn(); gapiSignedIn = true; updateGoogleSignedInStatus(); toast('Signed in', 'success'); }
+      catch(e){ console.error(e); toast('Sign in failed', 'error'); }
+    } else {
+      auth.signOut(); gapiSignedIn = false; updateGoogleSignedInStatus(); toast('Signed out', 'success');
+    }
+  });
+
+  // Create new sheet and set state.sheetId
+  async function createSheetIfNeeded(){
+    if(!gapiSignedIn) throw new Error('Not signed in');
+    if(state.sheetId) return state.sheetId;
+    // create
+    const resource = { properties: { title: 'Beira Mission Storage Inventory' } };
+    try{
+      const resp = await gapi.client.sheets.spreadsheets.create({}, resource);
+      const sheetId = resp.result.spreadsheetId;
+      state.sheetId = sheetId;
+      // write header row
+      const headers = [['id','name','type','size','fit','length','itemsPerBox','partialBox','partialCount','quantity','note','lastUpdated']];
+      await gapi.client.sheets.spreadsheets.values.update({
+        spreadsheetId: sheetId, range: 'Sheet1!A1:L1', valueInputOption: 'RAW',
+        resource: { values: headers }
+      });
+      saveState();
+      document.getElementById('sheetInfo').innerText = sheetId;
+      return sheetId;
+    } catch(e){ console.error('create sheet error', e); throw e; }
+  }
+
+  // Full sync: push local state to sheet (overwrite)
+  async function syncToSheet(){
+    if(syncing) return;
+    if(!gapiSignedIn || !googleInited) { console.log('gapi not ready'); return; }
+    syncing = true;
+    setSyncSpinner(true);
+    try{
+      if(!state.sheetId) await createSheetIfNeeded();
+      const sid = state.sheetId;
+      // Prepare rows
+      const rows = state.items.map(it => [
+        it.id, it.name, it.type, it.size || '', it.fit || '', it.length || '',
+        it.itemsPerBox || '', it.partialBox ? 'true' : 'false', it.partialCount || 0,
+        it.quantity || 0, it.note || '', new Date().toISOString()
+      ]);
+      // clear existing content (below header) and write new rows
+      const values = rows.length ? rows : [];
+      // set all values starting at A2
+      await gapi.client.sheets.spreadsheets.values.update({
+        spreadsheetId: sid, range: 'Sheet1!A2:L' + (rows.length + 1), valueInputOption: 'RAW',
+        resource: { values }
+      });
+      syncing = false;
+      setSyncSpinner(false);
+      const now = new Date(); const ts = now.toLocaleTimeString();
+      toast('✅ Synced to Google Sheets at ' + ts, 'success');
+      document.getElementById('forceSyncIcon').classList.remove('fa-spin');
+      document.getElementById('syncIcon').classList.remove('spin');
+      state.useSync = true;
+      saveState();
+    } catch(e){
+      syncing = false;
+      setSyncSpinner(false);
+      toast('Sync failed: ' + (e.message || 'unknown'), 'error');
+      console.error(e);
+    }
+  }
+
+  function setSyncSpinner(isOn){
+    const icon = document.getElementById('syncIcon');
+    const forceIcon = document.getElementById('forceSyncIcon');
+    document.getElementById('syncIconWrap').classList.toggle('hidden', !gapiSignedIn && !state.useSync);
+    if(isOn){ icon.classList.add('spin'); forceIcon.classList.add('fa-spin'); }
+    else { icon.classList.remove('spin'); forceIcon.classList.remove('fa-spin'); document.getElementById('syncLabel').innerText = state.useSync ? 'Synced' : 'Local only'; }
+  }
+
+  document.getElementById('enableSync').addEventListener('click', async ()=>{
+    if(!gapiSignedIn){ toast('Please sign in first', 'error'); return; }
+    try{
+      await createSheetIfNeeded();
+      state.useSync = true;
+      saveState();
+      await syncToSheet();
+      document.getElementById('sheetInfo').innerText = state.sheetId;
+      toast('Sheet created and sync enabled', 'success');
+    } catch(e){ toast('Could not create sheet: ' + (e.message||''), 'error'); console.error(e); }
+  });
+
+  document.getElementById('forceSync').addEventListener('click', async ()=>{
+    if(!gapiSignedIn){ toast('Please sign in', 'error'); return; }
+    document.getElementById('forceSyncIcon').classList.add('fa-spin');
+    await syncToSheet();
+  });
+
+  // If we want to fetch sheet back into local (not required but handy)
+  async function pullFromSheet(){
+    if(!gapiSignedIn || !state.sheetId) return;
+    try{
+      const sid = state.sheetId;
+      const resp = await gapi.client.sheets.spreadsheets.values.get({ spreadsheetId: sid, range: 'Sheet1!A2:L10000' });
+      const values = resp.result.values || [];
+      const items = values.map(row => ({
+        id: row[0],
+        name: row[1],
+        type: row[2],
+        size: row[3],
+        fit: row[4],
+        length: row[5],
+        itemsPerBox: row[6],
+        partialBox: row[7] === 'true',
+        partialCount: row[8],
+        quantity: row[9],
+        note: row[10]
+      }));
+      state.items = items;
+      saveState();
+      toast('Pulled data from sheet', 'success');
+    } catch(e){ toast('Pull failed', 'error'); console.error(e); }
+  }
+
+  // ====== Save and sync helper ======
+  function saveAndSync(){
+    saveState();
+    if(state.useSync && gapiSignedIn) syncToSheet();
+  }
+
+  // ====== UI Sync status ======
+  function updateSyncUI(){
+    document.getElementById('sheetInfo').innerText = state.sheetId || 'None';
+    document.getElementById('syncLabel').innerText = state.useSync ? (gapiSignedIn ? 'Synced' : 'Will sync when signed in') : 'Local only';
+    document.getElementById('syncIconWrap').classList.toggle('hidden', !gapiSignedIn && !state.useSync);
+  }
+
+  // ====== Init ======
+  function init(){
+    loadState();
+    // sample data if empty
+    if(!state.items || state.items.length === 0){
+      state.items = [
+        { id: uid(), name: 'Book of Mormon', type: 'box', quantity: 5, itemsPerBox: 10, partialBox: false, partialCount: 0 },
+        { id: uid(), name: 'Men Shirt', type: 'garment', quantity: 12, size: 'M', fit: 'normal', length: 'regular', typeTag: 'shirt' }
+      ];
+      saveState();
+    }
+    renderAll();
+    // wire quick UI
+    document.getElementById('openImportTab').addEventListener('click', ()=> {
+      document.querySelector('.tabs .tab[data-tab="import"]').click();
+    });
+
+    // init google if credentials provided
+    if(CLIENT_ID && API_KEY) initGapi();
+
+    // load chart contexts
+    const ctxC = document.getElementById('chartCategory');
+    const ctxS = document.getElementById('chartSizes');
+
+    // wire edit events delegated in renderTable
+  }
+
+  // Start
+  init();
+
+  // Expose some functions for debugging in console
+  window._beira = { state, saveState, syncToSheet };
+
+  </script>
+</body>
+</html>
