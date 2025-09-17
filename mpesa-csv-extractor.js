@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         M-Pesa CSV Extractor
 // @namespace    https://openai.com
-// @version      1.0
+// @version      1.1
 // @description  Extracts M-Pesa messages from messages.google.com and creates a CSV
 // @match        https://messages.google.com/web/*
 // @grant        none
@@ -178,6 +178,22 @@
                 const [_, code, value, fee, day, month, year] = transfer;
                 const formattedDate = `${day.padStart(2, '0')}/${month.padStart(2, '0')}/20${year}`;
                 rows.push([rows.length + 1, code, normalizeAmount(value), formattedDate, normalizeAmount(fee)]);
+                continue;
+            }
+            const withdraw = message.match(
+                /Confirmado\s+([A-Z0-9]{11,12})[\s\S]*?Aos\s+(\d{1,2})\/(\d{1,2})\/(\d{2})[\s\S]*?levantaste\s+([\d,]+\.\d{2})MT[\s\S]*?taxa\s+foi\s+de\s+([\d,]+\.\d{2})MT/i
+            );
+
+            if (withdraw) {
+                const [_, code, day, month, year, value, fee] = withdraw;
+                const formattedDate = `${day.padStart(2, '0')}/${month.padStart(2, '0')}/20${year}`;
+                rows.push([
+                    rows.length + 1,
+                    code,
+                    normalizeAmount(value),
+                    formattedDate,
+                    normalizeAmount(fee)
+                ]);
                 continue;
             }
 
