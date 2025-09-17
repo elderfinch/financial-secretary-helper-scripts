@@ -24,9 +24,9 @@ From there, you should be able to see all the available scripts.
 
 To install a script, simply click the script link and click "Install This Script"
 
-<<details>
+<details>
 <summary>Screenshot</summary>
 <img src="photos/install_example.png" width="500">
-</details>>
+</details>
 
 Then ignore the scary warning and click "Install".
