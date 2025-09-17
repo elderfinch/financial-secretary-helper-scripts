@@ -12,7 +12,7 @@ https://chromewebstore.google.com/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmp
 
 *For other browsers, click here (https://www.tampermonkey.net/index.php)*
 
-*For what it's worth. I highly reccomend installing the adblocker [Ublock Origin Lite](https://chromewebstore.google.com/detail/uBlock%20Origin%20Lite/ddkjiahejlhfcafbddmgiahcphecmpfh?hl=en): 
+*For what it's worth. I highly reccomend installing the adblocker [Ublock Origin Lite](https://chromewebstore.google.com/detail/uBlock%20Origin%20Lite/ddkjiahejlhfcafbddmgiahcphecmpfh?hl=en)*
 
 ## Installing User Scripts
 
