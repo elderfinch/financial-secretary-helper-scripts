@@ -26,7 +26,7 @@ To install a script, simply click the script link and click "Install This Script
 
 <details>
 <summary>Screenshot</summary>
-<img src="photos/install_example.png" width="500">
+<img src="photos/install_example.png" width="1000">
 </details>
 
 Then ignore the scary warning and click "Install".
