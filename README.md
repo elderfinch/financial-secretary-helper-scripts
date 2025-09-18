@@ -76,11 +76,6 @@ This script works almost the same way as the Payments Submit version but on the 
 
 </details>  
 
----
-
-Do you want me to make these **more concise (bullet-point style only)**, or keep the slightly descriptive flow?
-
-
 <details>
 <summary>
 M-Pesa CSV Extractor (Google Messages)
