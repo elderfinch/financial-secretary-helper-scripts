@@ -324,24 +324,90 @@
         return;
       }
 
-      const { amountIdx, descIdx } = detectColumns(headers);
-      if (amountIdx === -1 || descIdx === -1) {
-        notify('Could not find headers for Amount (e.g., "MZN Valor") and Description (e.g., "Line Item").', 'error', 6000);
-        console.error('[Auto MPESA] Headers:', headers);
-        return;
+      function showColumnSelector(headers) {
+        return new Promise((resolve) => {
+          const overlay = document.createElement('div');
+          Object.assign(overlay.style, {
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 999999
+          });
+
+          const panel = document.createElement('div');
+          Object.assign(panel.style, {
+            position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)',
+            background: '#fff', padding: '20px', borderRadius: '14px',
+            width: 'min(420px, 92vw)', boxShadow: '0 10px 40px rgba(0,0,0,.25)',
+            fontFamily: 'system-ui, Roboto, Segoe UI, Arial'
+          });
+
+          const title = document.createElement('div');
+          title.textContent = 'Select CSV Columns';
+          Object.assign(title.style, { fontSize: '18px', fontWeight: 700, marginBottom: '14px' });
+
+          function makeSelect(labelText) {
+            const label = document.createElement('label');
+            label.textContent = labelText;
+            Object.assign(label.style, { display: 'block', marginBottom: '6px', fontSize: '13px' });
+
+            const select = document.createElement('select');
+            headers.forEach(h => {
+              const opt = document.createElement('option');
+              opt.value = h;
+              opt.textContent = h;
+              select.appendChild(opt);
+            });
+            Object.assign(select.style, { width: '100%', marginBottom: '12px', padding: '4px' });
+
+            label.appendChild(select);
+            panel.appendChild(label);
+            return select;
+          }
+
+          const lineItemSel = makeSelect('Line Item column:');
+          const costSel     = makeSelect('Cost column:');
+          const feeSel      = makeSelect('Fee column (for TAX total):');
+
+          const btn = document.createElement('button');
+          btn.textContent = 'Continue';
+          Object.assign(btn.style, {
+            background: '#0a84ff', color: '#fff', border: 'none',
+            borderRadius: '8px', padding: '8px 12px', cursor: 'pointer'
+          });
+          btn.addEventListener('click', () => {
+            const cols = {
+              lineItem: lineItemSel.value,
+              cost: costSel.value,
+              fee: feeSel.value
+            };
+            overlay.remove();
+            resolve(cols);
+          });
+
+          panel.appendChild(btn);
+          overlay.appendChild(panel);
+          document.body.appendChild(overlay);
+        });
       }
 
-      // Build normalized records
-      const records = data.map((row, i) => {
-        const rawAmt = row[amountIdx];
-        const rawDesc = row[descIdx];
-        return {
-          amount: toTwoDecimalAmount(rawAmt),
-          description: (rawDesc ?? '').toString().trim()
-        };
-      }).filter(r => r.description || r.amount); // keep non-empty
-      const taxaTotal = sumTaxaColumn(headers, data);
 
+      const selectedCols = await showColumnSelector(headers);
+      const lineIdx = headers.indexOf(selectedCols.lineItem);
+      const costIdx = headers.indexOf(selectedCols.cost);
+      const feeIdx  = headers.indexOf(selectedCols.fee);
+
+
+
+      // Build normalized records
+      const records = data.map(row => ({
+        description: (row[lineIdx] || '').toString().trim(),
+        amount: toTwoDecimalAmount(row[costIdx])
+      }));
+
+      let taxaTotal = 0;
+      for (const row of data) {
+        const raw = (row[feeIdx] || '').toString().trim();
+        const num = parseFloat(raw.replace(',', '.'));
+        if (!isNaN(num)) taxaTotal += num;
+      }
 
       if (!records.length) {
         notify('No non-empty rows found after parsing.', 'error');
