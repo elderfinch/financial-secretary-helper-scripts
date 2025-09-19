@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Auto MPESA – IMOS One-Time Payment Helper
 // @namespace    benf.auto.mpesa
-// @version      1.0.0
+// @version      1.0.1
 // @description  Upload a CSV and auto-fill IMOS account distribution lines (description + amount). Adds rows in <=20 chunks.
 // @match        https://imos.churchofjesuschrist.org/payments/*
 // @run-at       document-idle
