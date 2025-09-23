@@ -2,8 +2,6 @@
 
 Hehehe… so you found the secret scripts page. Careful now — these little helpers are highly experimental, dangerously efficient, and known to cause sudden bursts of free time, reduced paperwork stress, and suspiciously accurate reports. Use at your own risk… productivity levels may rise, and you might just finish your work before lunch.
 
-Here's the number one rule of using the Financial Secretary Scripts (FSS): **UNINSTALL THEM WHEN THE AUDITOR OR ICS COMES**. Seriously. Uninstall Tampermonkey (we'll get to that in a minute). We can't have another freakout from the area. They are harmless, but they don't understand that. 
-
 These scripts were 99% written by ChatGPT. I did some minor editing and tweaking, but I did not write the code. So if you run into bugs, blame ChatGPT.
 
 ## Installing Tampermonkey
