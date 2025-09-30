@@ -224,6 +224,26 @@
                 continue;
             }
 
+            const compra2 = message.match(
+                /Confirmado\s+([A-Z0-9]{11,12})[\s\S]*?Registamos uma compra no valor de\s+([\d,]+\.\d{2})MT[\s\S]*?comerciante\s+(\d+)[\s\S]*?aos\s+(\d{1,2})\/(\d{1,2})\/(\d{2})[\s\S]*?saldo M-Pesa e de\s+([\d,]+\.\d{2})MT/i
+            );
+
+            if (compra2) {
+                const [_, code, value, merchant, day, month, year, balance] = compra2;
+                const formattedDate = `${day.padStart(2, '0')}/${month.padStart(2, '0')}/20${year}`;
+                rows.push([
+                    rows.length + 1,
+                    code,
+                    normalizeAmount(value),
+                    formattedDate,
+                    '0.00',
+                    merchant,
+                    normalizeAmount(balance)
+                ]);
+                continue;
+            }
+
+
         }
 
         if (rows.length === 0) {
