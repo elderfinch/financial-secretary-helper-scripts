@@ -172,14 +172,23 @@
             }
 
             const transfer = message.match(
-                /Confirmado\s+([A-Z0-9]{11,12})[\s\S]*?Transferiste\s+([\d.,]+)MT[\s\S]*?taxa\s+foi\s+de\s+([\d.,]+)MT[\s\S]*?aos\s+(\d{1,2})\/(\d{1,2})\/(\d{2})/i
+                /Confirmado\s+([A-Z0-9]{11,12})[\s\S]*?Transferiste\s+([\d,]+\.\d{2})MT[\s\S]*?taxa\s+foi\s+de\s+([\d,]+\.\d{2})MT[\s\S]*?para\s+(\d+)[\s\S]*?aos\s+(\d{1,2})\/(\d{1,2})\/(\d{2})[\s\S]*?saldo M-Pesa e de\s+([\d,]+\.\d{2})MT/i
             );
             if (transfer) {
-                const [_, code, value, fee, day, month, year] = transfer;
+                const [_, code, value, fee, recipient, day, month, year, balance] = transfer;
                 const formattedDate = `${day.padStart(2, '0')}/${month.padStart(2, '0')}/20${year}`;
-                rows.push([rows.length + 1, code, normalizeAmount(value), formattedDate, normalizeAmount(fee)]);
+                rows.push([
+                    rows.length + 1,
+                    code,
+                    normalizeAmount(value),
+                    formattedDate,
+                    normalizeAmount(fee),
+                    recipient,
+                    normalizeAmount(balance)
+                ]);
                 continue;
             }
+
             const withdraw = message.match(
                 /Confirmado\s+([A-Z0-9]{11,12})[\s\S]*?Aos\s+(\d{1,2})\/(\d{1,2})\/(\d{2})[\s\S]*?levantaste\s+([\d,]+\.\d{2})MT[\s\S]*?taxa\s+foi\s+de\s+([\d,]+\.\d{2})MT/i
             );
@@ -198,15 +207,23 @@
             }
 
             const compra = message.match(
-                /Confirmado\s+([A-Z0-9]{11,12})[\s\S]*?operacao de compra[\s\S]*?([\d.,]+)MT[\s\S]*?aos\s+(\d{1,2})\/(\d{1,2})\/(\d{2})/i
+                /Confirmado\s+([A-Z0-9]{11,12})[\s\S]*?operacao de compra[\s\S]*?([\d,]+\.\d{2})MT[\s\S]*?aos\s+(\d{1,2})\/(\d{1,2})\/(\d{2})[\s\S]*?saldo M-Pesa e de\s+([\d,]+\.\d{2})MT/i
             );
             if (compra) {
-                const [_, code, value, day, month, year] = compra;
+                const [_, code, value, day, month, year, balance] = compra;
                 const formattedDate = `${day.padStart(2, '0')}/${month.padStart(2, '0')}/20${year}`;
-                console.log(value)
-                rows.push([rows.length + 1, code, normalizeAmount(value), formattedDate, '0.00']);
+                rows.push([
+                    rows.length + 1,
+                    code,
+                    normalizeAmount(value),
+                    formattedDate,
+                    '0.00',
+                    'N/A',
+                    normalizeAmount(balance)
+                ]);
                 continue;
             }
+
         }
 
         if (rows.length === 0) {
@@ -215,7 +232,7 @@
         }
 
         const csvContent = [
-            ['Numero', 'Codigo M-Pesa', 'Valor', 'Data', 'Taxa'],
+            ['Numero', 'Codigo M-Pesa', 'Valor', 'Data', 'Taxa', 'Agente/Recipiente', 'Saldo Final'],
             ...rows
         ].map(row => row.map(field => `"${field}"`).join(';')).join('\r\n');
 
