@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Missionary Contact Generator</title>
+    <title>Missionary Contact Generator V4 (Fixed)</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
     <style>
@@ -11,29 +11,36 @@
         #transferboard-display { border: 1px solid #dee2e6; background-color: #fff; padding: 1rem; margin-top: 1.5rem; border-radius: .5rem; box-shadow: 0 0.5rem 1rem rgba(0,0,0,.05); overflow-x: auto; }
         .highlight-missing { outline: 2px solid #dc3545; box-shadow: 0 0 6px #dc3545; }
         .highlight-multiple { outline: 2px solid #dc3545 !important; box-shadow: 0 0 8px #dc3545 !important; border-radius: 4px; }
-        /* Styles from the original trasnferboard.html to make it render correctly */
+        #drop-zone { border: 2px dashed #0d6efd; border-radius: .5rem; padding: 40px; text-align: center; color: #6c757d; transition: background-color 0.2s ease-in-out; }
+        #drop-zone.dragover { background-color: #e9ecef; }
+        /* Copied styles for rendering */
         unassigned-section{display:block;width:100%;background-color:#fff;box-shadow:0 2px 4px #0003;position:relative}unassigned-section .unassigned-section-wrapper{overflow-x:auto;overflow-x:overlay;width:100%;height:192px;position:relative;padding:9px 16px}unassigned-section .unassigned-section-wrapper .unassigned-section-scrollable-wrapper{display:flex;flex-direction:row;flex-wrap:nowrap;justify-content:flex-start;align-items:flex-start;align-content:flex-start}unassigned-group{min-width:78px;padding:0 1rem;flex-shrink:0;flex-grow:0;position:relative;border-right:1px solid #bdc0c0}unassigned-group .label{appearance:none;font-size:10px;font-weight:700;text-transform:uppercase;height:12px;white-space:nowrap;line-height:12px;margin-bottom:.25rem;padding-left:3px;padding-right:3px;border:1px solid #a9adad;border-radius:2px;display:block;width:100%}unassigned-group span.label{border-color:transparent;display:block}missionary{display:block;-webkit-user-select:none;user-select:none;touch-action:none;width:46px;min-height:0;flex:0 0 46px;margin:1px 2px;background-color:#fff}missionary .missionary-image{width:46px;height:53px;overflow:hidden;position:relative;cursor:pointer}missionary .missionary-image img{width:46px;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}missionary .missionary-image .position{width:18px;height:14px;position:absolute;border-radius:3px;right:2px;bottom:1px;text-align:center;font-size:8px;line-height:14px;background-color:#fff;opacity:.9}missionary .missionary-name{white-space:nowrap;width:46px;overflow:hidden;text-overflow:ellipsis;font-size:10px;line-height:14px;height:14px}.zda-wrapper{padding:1rem 0;background-color:#f7f8f8;box-shadow:inset 0 7px 9px -7px rgba(0,0,0,0.4);overflow-x:auto}.zone-drop-region{display:flex;flex-direction:row;flex-wrap:nowrap;justify-content:flex-start;align-items:flex-start;align-content:flex-start;min-height:500px;padding:0 1rem}zone{display:block;border:2px solid #E5E5E5;border-radius:2px;background-color:#e5e5e5;padding:.5rem 6px;z-index:0}zone>.header{position:relative;-webkit-user-select:none;user-select:none;touch-action:none}zone>.header .zone-name{white-space:nowrap;width:102px;font-size:1rem;font-weight:700;line-height:1.4;padding-left:4px;padding-right:4px}zone>.header .zone-rule{border-top:4px solid #01b6d1;margin:0 2px}district{display:block;position:relative;background-color:#676b6e;writing-mode:horizontal-tb;border:1px solid #676b6e;border-radius:2px;margin:8px 2px 4px;z-index:0}district>.header{position:relative;-webkit-user-select:none;user-select:none;touch-action:none}district>.header .district-name{white-space:nowrap;width:104px;line-height:22px;height:22px;font-size:12px;font-weight:600;color:#fff;padding-left:4px;padding-right:4px}.district-drop-region{writing-mode:vertical-lr;display:inline-flex}teaching-area{display:block;writing-mode:horizontal-tb;background-color:#fff;border:1px solid #fff;border-radius:2px;margin:0 1px 2px}teaching-area>.header{position:relative;-webkit-user-select:none;user-select:none;touch-action:none}teaching-area>.header .area-name{padding-left:4px;padding-right:4px;white-space:nowrap;width:98px;height:20px;line-height:20px;font-size:10px;overflow:hidden;cursor:pointer}.missionary-drop-region{display:flex;flex-wrap:wrap;min-height:55px;padding-bottom:1px}
     </style>
 </head>
 <body>
     <div class="container-fluid py-4">
         <div class="p-5 mb-4 bg-light rounded-3">
-            <div class="container-fluid py-3">
-                <h1 class="display-5 fw-bold">Missionary Contact Generator</h1>
-                <p class="col-md-8 fs-5">This tool merges data from your transfer board and roster to create a formatted contact list. Start by selecting your files below.</p>
-            </div>
+            <h1 class="display-5 fw-bold">Missionary Contact Generator</h1>
+            <p class="col-md-8 fs-5">A tool to merge transfer board data with a missionary roster and create a formatted contact list.</p>
         </div>
 
-        <div class="row g-3 align-items-center mb-4 p-4 border rounded bg-white">
+        <div class="row g-3 mb-4 p-4 border rounded bg-white">
             <div class="col-md-6">
-                <label for="mhtmlFile" class="form-label fw-bold">1. Upload Transfer Board (<kbd>.mhtml</kbd> file)</label>
-                <input class="form-control" type="file" id="mhtmlFile" accept=".mhtml,.mht">
-                <div class="form-text">In your browser, save the transfer board page as "Webpage, Single File".</div>
+                <label for="htmlFile" class="form-label fw-bold">1. Upload Transfer Board HTML File</label>
+                <input class="form-control" type="file" id="htmlFile" accept=".html,.htm">
             </div>
             <div class="col-md-6">
-                <label for="csvFile" class="form-label fw-bold">2. Upload Missionary Roster (<kbd>.csv</kbd> file)</label>
+                <label for="csvFile" class="form-label fw-bold">2. Upload Missionary Roster CSV</label>
                 <input class="form-control" type="file" id="csvFile" accept=".csv">
-                <div class="form-text">Uploading this will trigger the column mapping step.</div>
+                <div class="form-text">This will open the column mapping tool.</div>
+            </div>
+            <div class="col-12 mt-4">
+                 <label class="form-label fw-bold">3. Upload Asset Files</label>
+                <div id="drop-zone">
+                    <p>Drag & drop all files from the `trasnferboard_files` folder here, or click to select files.</p>
+                    <input type="file" id="assetFiles" multiple class="d-none">
+                    <p id="file-count" class="fw-bold"></p>
+                </div>
             </div>
         </div>
         
@@ -49,37 +56,18 @@
     <div class="modal fade" id="columnMappingModal" tabindex="-1" aria-labelledby="columnMappingModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="columnMappingModalLabel">Step 2: Map Your CSV Columns</h5>
-                </div>
+                <div class="modal-header"><h5 class="modal-title" id="columnMappingModalLabel">Map Your CSV Columns</h5></div>
                 <div class="modal-body">
-                    <p>Please match the required data fields to the corresponding columns from your uploaded CSV file.</p>
+                    <p>Please match the required data fields to the columns from your CSV file.</p>
                     <div class="row g-3">
-                        <div class="col-md-6">
-                            <label for="map-imos" class="form-label">IMOS Number (Unique ID)</label>
-                            <select id="map-imos" class="form-select"></select>
-                        </div>
-                        <div class="col-md-6">
-                            <label for="map-firstName" class="form-label">First Name</label>
-                            <select id="map-firstName" class="form-select"></select>
-                        </div>
-                        <div class="col-md-6">
-                            <label for="map-lastName" class="form-label">Last Name</label>
-                            <select id="map-lastName" class="form-select"></select>
-                        </div>
-                        <div class="col-md-6">
-                            <label for="map-phone" class="form-label">Phone Number</label>
-                            <select id="map-phone" class="form-select"></select>
-                        </div>
-                         <div class="col-md-6">
-                            <label for="map-type" class="form-label">Missionary Type (e.g., Elder/Sister)</label>
-                            <select id="map-type" class="form-select"></select>
-                        </div>
+                        <div class="col-md-6"><label for="map-imos" class="form-label">IMOS Number (Unique ID)</label><select id="map-imos" class="form-select"></select></div>
+                        <div class="col-md-6"><label for="map-firstName" class="form-label">First Name</label><select id="map-firstName" class="form-select"></select></div>
+                        <div class="col-md-6"><label for="map-lastName" class="form-label">Last Name</label><select id="map-lastName" class="form-select"></select></div>
+                        <div class="col-md-6"><label for="map-phone" class="form-label">Phone Number</label><select id="map-phone" class="form-select"></select></div>
+                         <div class="col-md-6"><label for="map-type" class="form-label">Missionary Type (e.g., Elder/Sister)</label><select id="map-type" class="form-select"></select></div>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-primary" id="confirmMappingBtn">Confirm Mapping & Process Files</button>
-                </div>
+                <div class="modal-footer"><button type="button" class="btn btn-primary" id="confirmMappingBtn">Confirm Mapping & Process</button></div>
             </div>
         </div>
     </div>
@@ -87,24 +75,12 @@
     <div class="modal fade" id="editPhoneModal" tabindex="-1" aria-labelledby="editPhoneModalLabel" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="editPhoneModalLabel">Edit Phone Number</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
+                <div class="modal-header"><h5 class="modal-title" id="editPhoneModalLabel">Edit Phone Number</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
                 <div class="modal-body">
                     <p><strong>Missionary:</strong> <span id="modal-missionary-name"></span></p>
-                    <div id="single-phone-container" class="mb-3">
-                        <label class="form-label">Phone Number:</label>
-                        <div class="input-group"><select class="form-select" id="country-code-select" style="max-width: 120px;"><option value="+258" selected>+258 (MZ)</option><option value="+1">+1 (US/CA)</option><option value="+55">+55 (BR)</option><option value="+244">+244 (AO)</option><option value="+351">+351 (PT)</option></select><input type="tel" class="form-control" id="modal-phone-input"></div>
-                    </div>
-                    <div id="multiple-phone-container" class="mb-3 d-none">
-                        <label for="multiple-phone-select" class="form-label">This missionary has multiple numbers. Please select the correct one:</label>
-                        <select class="form-select" id="multiple-phone-select"></select>
-                    </div>
-                    <div id="other-phone-container" class="mb-3 d-none">
-                        <label class="form-label">Enter Correct Number:</label>
-                        <div class="input-group"><select class="form-select" id="other-country-code-select" style="max-width: 120px;"><option value="+258" selected>+258 (MZ)</option><option value="+1">+1 (US/CA)</option><option value="+55">+55 (BR)</option><option value="+244">+244 (AO)</option><option value="+351">+351 (PT)</option></select><input type="tel" class="form-control" id="other-phone-input"></div>
-                    </div>
+                    <div id="single-phone-container" class="mb-3"><label class="form-label">Phone Number:</label><div class="input-group"><select class="form-select" id="country-code-select" style="max-width: 120px;"><option value="+258" selected>+258 (MZ)</option><option value="+1">+1 (US/CA)</option><option value="+55">+55 (BR)</option><option value="+244">+244 (AO)</option><option value="+351">+351 (PT)</option></select><input type="tel" class="form-control" id="modal-phone-input"></div></div>
+                    <div id="multiple-phone-container" class="mb-3 d-none"><label for="multiple-phone-select" class="form-label">This missionary has multiple numbers. Please select one:</label><select class="form-select" id="multiple-phone-select"></select></div>
+                    <div id="other-phone-container" class="mb-3 d-none"><label class="form-label">Enter Correct Number:</label><div class="input-group"><select class="form-select" id="other-country-code-select" style="max-width: 120px;"><option value="+258" selected>+258 (MZ)</option><option value="+1">+1 (US/CA)</option><option value="+55">+55 (BR)</option><option value="+244">+244 (AO)</option><option value="+351">+351 (PT)</option></select><input type="tel" class="form-control" id="other-phone-input"></div></div>
                     <a id="whatsapp-link" href="#" target="_blank" class="btn btn-sm btn-success disabled"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-whatsapp" viewBox="0 0 16 16"><path d="M13.601 2.326A7.854 7.854 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.933 7.933 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.898 7.898 0 0 0 13.6 2.326zM7.994 14.521a6.573 6.573 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.557 6.557 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592zm3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.729.729 0 0 0-.529.247c-.182.198-.691.677-.691 1.654 0 .977.71 1.916.81 2.049.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232z"/></svg> Message</a>
                     <input type="hidden" id="modal-missionary-id">
                 </div>
@@ -115,7 +91,6 @@
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // SCRIPT START
         let missionaryDataStore = [];
         let transferBoardDOM = null;
         let columnMap = {};
@@ -124,15 +99,9 @@
         document.addEventListener('DOMContentLoaded', () => {
             phoneModal = new bootstrap.Modal(document.getElementById('editPhoneModal'));
             mappingModal = new bootstrap.Modal(document.getElementById('columnMappingModal'));
-
-            document.getElementById('csvFile').addEventListener('change', handleCsvSelect);
-            document.getElementById('confirmMappingBtn').addEventListener('click', handleFileProcessing);
-            document.getElementById('downloadBtn').addEventListener('click', handleDownload);
-            document.getElementById('savePhoneBtn').addEventListener('click', savePhoneNumber);
-            document.getElementById('multiple-phone-select').addEventListener('change', handleMultiplePhoneSelection);
+            setupEventListeners();
         });
 
-        // Other functions (showAlert, openEditModal, savePhoneNumber, etc.) remain largely the same, but will be updated to use columnMap
         const showAlert = (message, type = 'danger', duration = 5000) => {
             const alertContainer = document.getElementById('alert-container');
             const alertId = `alert-${Date.now()}`;
@@ -146,33 +115,52 @@
             }
         };
 
+        function setupEventListeners() {
+            document.getElementById('csvFile').addEventListener('change', handleCsvSelect);
+            document.getElementById('confirmMappingBtn').addEventListener('click', processFiles);
+            document.getElementById('downloadBtn').addEventListener('click', handleDownload);
+            document.getElementById('savePhoneBtn').addEventListener('click', savePhoneNumber);
+            document.getElementById('multiple-phone-select').addEventListener('change', handleMultiplePhoneSelection);
+
+            const dropZone = document.getElementById('drop-zone');
+            dropZone.addEventListener('click', () => document.getElementById('assetFiles').click());
+            dropZone.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); dropZone.classList.add('dragover'); });
+            dropZone.addEventListener('dragleave', (e) => { e.preventDefault(); e.stopPropagation(); dropZone.classList.remove('dragover'); });
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault(); e.stopPropagation();
+                dropZone.classList.remove('dragover');
+                const assetInput = document.getElementById('assetFiles');
+                assetInput.files = e.dataTransfer.files;
+                updateFileCount(assetInput.files.length);
+            });
+            document.getElementById('assetFiles').addEventListener('change', (e) => updateFileCount(e.target.files.length));
+        }
+        
+        const updateFileCount = (count) => {
+            document.getElementById('file-count').textContent = `${count} file(s) selected.`;
+        };
+
         const handleCsvSelect = (event) => {
             const csvFile = event.target.files[0];
             if (!csvFile) return;
-
             Papa.parse(csvFile, {
-                preview: 1, // Only read the first row for headers
+                preview: 1,
                 complete: (results) => {
-                    const headers = results.data[0];
-                    populateMappingModal(headers);
+                    populateMappingModal(results.data[0]);
                     mappingModal.show();
                 }
             });
         };
 
         const populateMappingModal = (headers) => {
-            const selectors = ['map-imos', 'map-firstName', 'map-lastName', 'map-phone', 'map-type'];
-            selectors.forEach(id => {
+            ['map-imos', 'map-firstName', 'map-lastName', 'map-phone', 'map-type'].forEach(id => {
                 const select = document.getElementById(id);
                 select.innerHTML = '<option value="" selected>Select a column...</option>';
-                headers.forEach(header => {
-                    select.innerHTML += `<option value="${header}">${header}</option>`;
-                });
+                headers.forEach(header => select.innerHTML += `<option value="${header}">${header}</option>`);
             });
         };
 
-        const handleFileProcessing = () => {
-             // 1. Get user's column mapping
+        async function processFiles() {
             columnMap = {
                 imos: document.getElementById('map-imos').value,
                 firstName: document.getElementById('map-firstName').value,
@@ -180,122 +168,40 @@
                 phone: document.getElementById('map-phone').value,
                 type: document.getElementById('map-type').value,
             };
-
-            if (Object.values(columnMap).some(v => v === '')) {
-                showAlert('Please map all required columns before proceeding.');
-                return;
-            }
+            if (Object.values(columnMap).some(v => !v)) { showAlert('Please map all columns before proceeding.'); return; }
             mappingModal.hide();
 
-            // 2. Read the files
-            const mhtmlFileInput = document.getElementById('mhtmlFile');
-            const csvFileInput = document.getElementById('csvFile');
+            const htmlFile = document.getElementById('htmlFile').files[0];
+            const csvFile = document.getElementById('csvFile').files[0];
+            const assetFiles = document.getElementById('assetFiles').files;
 
-            if (!mhtmlFileInput.files.length || !csvFileInput.files.length) {
-                showAlert('Both MHTML and CSV files must be selected.');
-                return;
-            }
-
-            const mhtmlFile = mhtmlFileInput.files[0];
-            const csvFile = csvFileInput.files[0];
-            const readerMhtml = new FileReader();
-            const readerCsv = new FileReader();
+            if (!htmlFile || !csvFile || assetFiles.length === 0) { showAlert('Please select the HTML, CSV, and Asset files before processing.'); return; }
             
-            showAlert('Processing files... this may take a moment.', 'info', 0);
+            showAlert('Processing files... This may take a moment.', 'info', 0);
 
-            readerMhtml.onload = (e) => {
-                readerCsv.readAsText(csvFile);
-            };
-            
-            readerCsv.onload = async (e) => {
-                 await parseAndMerge(e.target.result, readerMhtml.result);
-            };
-
-            readerMhtml.readAsText(mhtmlFile, 'UTF-8');
-        };
-
-        async function parseMHTML(mhtmlContent) {
-            const boundaryMatch = mhtmlContent.match(/boundary="([^"]+)"/i);
-            if (!boundaryMatch) throw new Error("Could not find MIME boundary in MHTML file.");
-            
-            const boundary = `--${boundaryMatch[1]}`;
-            const parts = mhtmlContent.split(boundary);
-            const resourceMap = new Map();
-            let htmlPart = '';
-
-            for (const part of parts) {
-                if (!part.trim()) continue;
-                
-                const headerEnd = part.indexOf('\r\n\r\n');
-                if (headerEnd === -1) continue;
-                
-                const headers = part.substring(0, headerEnd);
-                let body = part.substring(headerEnd + 4);
-                
-                const locationMatch = headers.match(/Content-Location:\s*([^\s\r\n]+)/i);
-                const typeMatch = headers.match(/Content-Type:\s*([^\s\r\n;]+)/i);
-                const encodingMatch = headers.match(/Content-Transfer-Encoding:\s*([^\s\r\n]+)/i);
-                const cidMatch = headers.match(/Content-ID:\s*<([^>]+)>/i);
-
-                if (!typeMatch) continue;
-                
-                const contentType = typeMatch[1];
-                if (contentType.includes('text/html')) {
-                    htmlPart = body;
-                    if(encodingMatch && encodingMatch[1].toLowerCase() === 'base64') {
-                       htmlPart = atob(body.replace(/\s/g, ''));
-                    }
-                } else if (locationMatch) {
-                    const location = locationMatch[1];
-                    const encoding = encodingMatch ? encodingMatch[1].toLowerCase() : '';
-                    let resourceBlob;
-                    
-                    if (encoding === 'base64') {
-                       try {
-                            const binaryString = atob(body.replace(/\s/g, ''));
-                            const len = binaryString.length;
-                            const bytes = new Uint8Array(len);
-                            for (let i = 0; i < len; i++) {
-                                bytes[i] = binaryString.charCodeAt(i);
-                            }
-                            resourceBlob = new Blob([bytes], { type: contentType });
-                        } catch(e) { console.error(`Base64 decoding failed for ${location}:`, e); continue; }
-                    } else {
-                        resourceBlob = new Blob([body], { type: contentType });
-                    }
-                    
-                    const blobUrl = URL.createObjectURL(resourceBlob);
-                    resourceMap.set(location, blobUrl);
-                    if (cidMatch) {
-                        resourceMap.set(`cid:${cidMatch[1]}`, blobUrl);
-                    }
-                }
-            }
-            
-            let finalHtml = htmlPart;
-            for (const [loc, url] of resourceMap.entries()) {
-                 finalHtml = finalHtml.split(loc).join(url);
-            }
-            return finalHtml;
-        }
-
-        const parseAndMerge = async (csvText, mhtmlText) => {
             try {
-                const processedHtml = await parseMHTML(mhtmlText);
+                const htmlText = await htmlFile.text();
+                const csvText = await csvFile.text();
                 
-                const parser = new DOMParser();
-                transferBoardDOM = parser.parseFromString(processedHtml, 'text/html');
+                const resourceMap = new Map();
+                for (const file of assetFiles) {
+                    const key = `./trasnferboard_files/${file.name}`;
+                    resourceMap.set(key, URL.createObjectURL(file));
+                }
+
+                let processedHtml = htmlText;
+                for (const [path, blobUrl] of resourceMap.entries()) {
+                    processedHtml = processedHtml.replace(new RegExp(path.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), 'g'), blobUrl);
+                }
+                
+                transferBoardDOM = new DOMParser().parseFromString(processedHtml, 'text/html');
 
                 Papa.parse(csvText, {
-                    header: true,
-                    skipEmptyLines: true,
+                    header: true, skipEmptyLines: true,
                     complete: (results) => {
-                        missionaryDataStore = results.data.map(m => {
-                            const imos = m[columnMap.imos];
-                            return { ...m, Position: findPositionInDOM(imos) };
-                        });
+                        missionaryDataStore = results.data.map(m => ({ ...m, Position: findPositionInDOM(m[columnMap.imos]) }));
                         renderTransferBoard();
-                        document.querySelector('.alert')?.remove(); // Clear "processing" alert
+                        document.querySelector('.alert')?.remove();
                         showAlert('Files processed successfully!', 'success');
                         document.getElementById('downloadBtn').classList.remove('d-none');
                         document.getElementById('transferboard-display').classList.remove('d-none');
@@ -305,7 +211,7 @@
                 showAlert(`An error occurred: ${error.message}`);
                 console.error(error);
             }
-        };
+        }
 
         const findPositionInDOM = (imosNumber) => {
             const el = transferBoardDOM.querySelector(`#missionary-id-${imosNumber}`);
@@ -314,27 +220,24 @@
 
         const renderTransferBoard = () => {
             const displayDiv = document.getElementById('transferboard-display');
-            const unassignedSection = transferBoardDOM.querySelector('unassigned-section');
+            const unassigned = transferBoardDOM.querySelector('unassigned-section');
             const zdaWrapper = transferBoardDOM.querySelector('.zda-wrapper');
             
             displayDiv.innerHTML = '';
-            if (unassignedSection) displayDiv.appendChild(unassignedSection.cloneNode(true));
+            if (unassigned) displayDiv.appendChild(unassigned.cloneNode(true));
             if (zdaWrapper) displayDiv.appendChild(zdaWrapper.cloneNode(true));
-
             applyHighlights();
 
             displayDiv.addEventListener('click', (event) => {
                 const missionaryElement = event.target.closest('missionary');
                 if (missionaryElement) {
-                    const missionaryId = missionaryElement.id.replace('missionary-id-', '');
-                    openEditModal(missionaryId);
+                    openEditModal(missionaryElement.id.replace('missionary-id-', ''));
                 }
             });
         };
         
         const applyHighlights = () => {
             document.querySelectorAll('.highlight-missing, .highlight-multiple').forEach(el => el.classList.remove('highlight-missing', 'highlight-multiple'));
-
             missionaryDataStore.forEach(m => {
                 const phone = m[columnMap.phone] || '';
                 if (!phone.trim()) {
@@ -342,59 +245,45 @@
                     if (el) el.classList.add('highlight-missing');
                 }
             });
-
             document.querySelectorAll('teaching-area').forEach(area => {
-                const hasMultiple = Array.from(area.querySelectorAll('missionary')).some(missEl => {
-                    const imos = missEl.id.replace('missionary-id-', '');
-                    const missionary = missionaryDataStore.find(m => m[columnMap.imos] === imos);
+                const hasMultiple = Array.from(area.querySelectorAll('missionary')).some(el => {
+                    const missionary = missionaryDataStore.find(m => m[columnMap.imos] === el.id.replace('missionary-id-', ''));
                     return missionary && (parsePhoneString(missionary[columnMap.phone]).length > 1);
                 });
                 if (hasMultiple) area.classList.add('highlight-multiple');
             });
         };
         
-        const parsePhoneString = (phoneStr) => (phoneStr || '').match(/(\+?\d[\s\d-]{7,})/g) || [];
-
         const openEditModal = (imosNumber) => {
             const missionary = missionaryDataStore.find(m => m[columnMap.imos] === imosNumber);
-            if (!missionary) { showAlert(`Missionary with ID ${imosNumber} not found.`); return; }
-
-            document.getElementById('single-phone-container').classList.add('d-none');
-            document.getElementById('multiple-phone-container').classList.add('d-none');
-            document.getElementById('other-phone-container').classList.add('d-none');
+            if (!missionary) return;
             
+            ['single-phone-container', 'multiple-phone-container', 'other-phone-container'].forEach(id => document.getElementById(id).classList.add('d-none'));
             document.getElementById('modal-missionary-name').textContent = `${missionary[columnMap.firstName]} ${missionary[columnMap.lastName]}`;
             document.getElementById('modal-missionary-id').value = imosNumber;
 
             const phoneNumbers = parsePhoneString(missionary[columnMap.phone]);
-            
             if (phoneNumbers.length > 1) {
                 document.getElementById('multiple-phone-container').classList.remove('d-none');
                 const multiSelect = document.getElementById('multiple-phone-select');
                 multiSelect.innerHTML = '<option value="" selected disabled>Select a number...</option>';
                 phoneNumbers.forEach(num => multiSelect.innerHTML += `<option value="${num.trim()}">${num.trim()}</option>`);
-                multiSelect.innerHTML += `<option value="other">-- Other (Enter new number) --</option>`;
+                multiSelect.innerHTML += `<option value="other">-- Other --</option>`;
                 updateWhatsAppLink('');
             } else {
                 document.getElementById('single-phone-container').classList.remove('d-none');
                 const number = phoneNumbers.length === 1 ? phoneNumbers[0] : '';
                 const justDigits = number.replace(/\D/g, '');
-                let countryCode = "+258"; let mainNumber = justDigits;
-                if(number.startsWith('+258')) mainNumber = justDigits.substring(3);
-                else if (number.startsWith('+1')) { countryCode = "+1"; mainNumber = justDigits.substring(1); }
+                let countryCode = "+258", mainNumber = justDigits;
+                if(number.startsWith('+1')) { countryCode = "+1"; mainNumber = justDigits.substring(1); }
                 else if (number.startsWith('+55')) { countryCode = "+55"; mainNumber = justDigits.substring(2); }
+                else if (number.startsWith('+258')) { mainNumber = justDigits.substring(3); }
                 
                 document.getElementById('country-code-select').value = countryCode;
                 document.getElementById('modal-phone-input').value = mainNumber;
                 updateWhatsAppLink(countryCode + mainNumber);
             }
             phoneModal.show();
-        };
-
-        const handleMultiplePhoneSelection = (e) => {
-            const otherContainer = document.getElementById('other-phone-container');
-            otherContainer.classList.toggle('d-none', e.target.value !== 'other');
-            updateWhatsAppLink(e.target.value === 'other' ? '' : e.target.value);
         };
 
         const savePhoneNumber = () => {
@@ -406,9 +295,7 @@
                 if (selection === 'other') {
                     const phone = document.getElementById('other-phone-input').value.replace(/\s/g, '');
                     if (phone) finalNumber = `${document.getElementById('other-country-code-select').value}${phone}`;
-                } else {
-                    finalNumber = selection.replace(/\s/g, '');
-                }
+                } else { finalNumber = selection.replace(/\s/g, ''); }
             } else {
                 const phone = document.getElementById('modal-phone-input').value.replace(/\s/g, '');
                 if (phone) finalNumber = `${document.getElementById('country-code-select').value}${phone}`;
@@ -421,16 +308,17 @@
             applyHighlights();
         };
 
+        const parsePhoneString = (phoneStr) => (phoneStr || '').match(/(\+?\d[\s\d-]{7,})/g) || [];
+        const handleMultiplePhoneSelection = (e) => {
+            document.getElementById('other-phone-container').classList.toggle('d-none', e.target.value !== 'other');
+            updateWhatsAppLink(e.target.value === 'other' ? '' : e.target.value);
+        };
         const updateWhatsAppLink = (number) => {
             const link = document.getElementById('whatsapp-link');
             const cleanNumber = (number || '').replace(/\D/g, '');
-            if (!cleanNumber) {
-                link.classList.add('disabled'); link.href = '#';
-            } else {
-                link.href = `https://wa.me/${cleanNumber}`; link.classList.remove('disabled');
-            }
+            link.classList.toggle('disabled', !cleanNumber);
+            link.href = cleanNumber ? `https://wa.me/${cleanNumber}` : '#';
         };
-
         const getZoneAbbreviation = (zoneName) => (zoneName || '').split(' ').map(w => w[0]).join('').toUpperCase();
         const getFirstNameInitial = (firstName) => (firstName || '').trim().charAt(0) + '.';
 
@@ -443,24 +331,19 @@
                 const zoneName = areaElement.closest('zone')?.querySelector('.zone-name')?.getAttribute('title') || '';
                 const zoneAbbr = getZoneAbbreviation(zoneName);
 
-                const missionaryElements = areaElement.querySelectorAll('missionary');
-                if (missionaryElements.length === 0) return;
-
-                const missionariesInArea = Array.from(missionaryElements)
+                const missionariesInArea = Array.from(areaElement.querySelectorAll('missionary'))
                     .map(el => missionaryDataStore.find(m => m[columnMap.imos] === el.id.replace('missionary-id-', '')))
                     .filter(Boolean);
 
                 const leadership = missionariesInArea.filter(m => leadershipPositions.includes(m.Position));
                 const standard = missionariesInArea.filter(m => !leadershipPositions.includes(m.Position));
                 
-                leadership.forEach(m => {
-                    contacts.push({
-                        'First Name': `${getFirstNameInitial(m[columnMap.firstName])} ${m[columnMap.lastName]}`,
-                        'Middle Name': '|',
-                        'Last Name': `${areaName} (${zoneAbbr}) [${m.Position}]`,
-                        'Phone': m[columnMap.phone] || ''
-                    });
-                });
+                leadership.forEach(m => contacts.push({
+                    'First Name': `${getFirstNameInitial(m[columnMap.firstName])} ${m[columnMap.lastName]}`,
+                    'Middle Name': '|',
+                    'Last Name': `${areaName} (${zoneAbbr}) [${m.Position}]`,
+                    'Phone': m[columnMap.phone] || ''
+                }));
 
                 if (standard.length > 0) {
                      const fName = standard.map(m => `${getFirstNameInitial(m[columnMap.firstName])} ${m[columnMap.lastName]}`).join(' e ');
@@ -477,12 +360,9 @@
         };
 
         const downloadCSV = (csvContent, fileName) => {
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
-            const url = URL.createObjectURL(blob);
-            link.setAttribute('href', url);
+            link.href = URL.createObjectURL(new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }));
             link.setAttribute('download', fileName);
-            link.style.visibility = 'hidden';
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
