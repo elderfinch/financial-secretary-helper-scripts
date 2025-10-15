@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Card Reconciliation Automator (v1.9 - iFrame Guard)
+// @name         Card Reconciliation Automator (v2.0 - Final)
 // @namespace    http://tampermonkey.net/
-// @version      1.9
-// @description  Final version with dynamic iframe finding, a slower pace, and a guard to prevent it from loading in sub-frames.
+// @version      2.0
+// @description  Final version with flexible amount matching, dynamic iframe finding, a slower pace, and an iframe guard.
 // @author       Gemini
 // @match        https://card.churchofjesuschrist.org/psc/card/EMPLOYEE/ERP/c/*
 // @grant        GM_addStyle
@@ -13,7 +13,6 @@
     'use strict';
 
     // --- SCRIPT INITIALIZATION GUARD ---
-    // This is the new check. If the script is running inside an iframe, stop it immediately.
     if (window.self !== window.top) {
         console.log('[Recon Script] Running inside an iframe, aborting.');
         return;
@@ -269,7 +268,10 @@
                 if (amountEl && currencyEl) {
                     const pageAmount = parseFloat(amountEl.textContent.replace(/,/g, ''));
                     const pageCurrency = currencyEl.textContent.trim().toUpperCase();
-                    if (pageAmount === receipt.value && pageCurrency === receipt.currency) {
+
+                    // --- THIS IS THE UPDATED LINE ---
+                    // Instead of exact '===', check if the difference is less than a cent.
+                    if (Math.abs(pageAmount - receipt.value) < 0.01 && pageCurrency === receipt.currency) {
                         log(`Match found for ${receipt.value} ${receipt.currency}`);
                         try {
                             await processSingleTransaction(row, receipt);
