@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Missionary Transfer Finder</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sortable-tablesort@4.0.0/sortable-base.css" />
+    <style>
+        body { padding: 2em; }
+        .controls { margin-bottom: 2em; }
+        img { width: 100px; height: auto; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="d-flex justify-content-end mb-3">
+            <div class="btn-group">
+                <button class="btn btn-outline-secondary" onclick="setLanguage('en')">English</button>
+                <button class="btn btn-outline-secondary" onclick="setLanguage('pt')">Português</button>
+            </div>
+        </div>
+
+        <h1 id="title" class="mb-4">Missionary Transfer Finder</h1>
+
+        <div class="controls row g-3">
+            <div class="col-md-6">
+                <label for="oldRoster" class="form-label" id="oldRosterLabel">Old Roster CSV:</label>
+                <input type="file" class="form-control" id="oldRoster" accept=".csv">
+            </div>
+            <div class="col-md-6">
+                <label for="newRoster" class="form-label" id="newRosterLabel">New Roster CSV:</label>
+                <input type="file" class="form-control" id="newRoster" accept=".csv">
+            </div>
+            <div class="col-12">
+                <button onclick="findTransfers()" class="btn btn-primary" id="findBtn">Find Transfers</button>
+            </div>
+        </div>
+
+        <div id="results"></div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortable-tablesort@4.0.0/sortable.min.js"></script>
+
+    <script>
+        const translations = {
+            en: {
+                title: "Missionary Transfer Finder",
+                oldRosterLabel: "Old Roster CSV:",
+                newRosterLabel: "New Roster CSV:",
+                findBtn: "Find Transfers",
+                nameHeader: "Name",
+                oldZoneHeader: "Old Zone",
+                oldDistrictHeader: "Old District",
+                newZoneHeader: "New Zone",
+                newDistrictHeader: "New District",
+                pictureHeader: "Picture",
+                travelHeader: "Travel Method",
+                travelOptions: {
+                    plane: "Plane",
+                    bus: "Bus",
+                    ride: "Ride",
+                    taxi: "Taxi/Txopela"
+                }
+            },
+            pt: {
+                title: "Localizador de Transferências de Missionários",
+                oldRosterLabel: "Lista Antiga (CSV):",
+                newRosterLabel: "Lista Nova (CSV):",
+                findBtn: "Encontrar Transferências",
+                nameHeader: "Nome",
+                oldZoneHeader: "Zona Antiga",
+                oldDistrictHeader: "Distrito Antigo",
+                newZoneHeader: "Nova Zona",
+                newDistrictHeader: "Novo Distrito",
+                pictureHeader: "Foto",
+                travelHeader: "Método de Viagem",
+                travelOptions: {
+                    plane: "Avião",
+                    bus: "Autocarro",
+                    ride: "Boleia",
+                    taxi: "Táxi/Txopela"
+                }
+            }
+        };
+
+        let currentLang = 'en';
+
+        function setLanguage(lang) {
+            currentLang = lang;
+            const t = translations[lang];
+            document.getElementById('title').innerText = t.title;
+            document.getElementById('oldRosterLabel').innerText = t.oldRosterLabel;
+            document.getElementById('newRosterLabel').innerText = t.newRosterLabel;
+            document.getElementById('findBtn').innerText = t.findBtn;
+            
+            // Redraw table headers if table exists
+            const table = document.querySelector('#results table');
+            if(table) {
+                findTransfers(); // Re-run to redraw table with new language
+            }
+        }
+
+        function findTransfers() {
+            const oldRosterFile = document.getElementById('oldRoster').files[0];
+            const newRosterFile = document.getElementById('newRoster').files[0];
+
+            if (!oldRosterFile || !newRosterFile) {
+                alert("Please select both old and new roster files.");
+                return;
+            }
+
+            Papa.parse(oldRosterFile, {
+                header: true,
+                complete: (oldResults) => {
+                    Papa.parse(newRosterFile, {
+                        header: true,
+                        complete: (newResults) => {
+                            const oldDataMap = new Map();
+                            oldResults.data.forEach(row => {
+                                if (row['IMOS Number']) {
+                                    oldDataMap.set(row['IMOS Number'], row);
+                                }
+                            });
+
+                            const transfers = [];
+                            newResults.data.forEach(newRow => {
+                                const imos = newRow['IMOS Number'];
+                                if (imos && oldDataMap.has(imos)) {
+                                    const oldRow = oldDataMap.get(imos);
+                                    if (newRow['Area'] !== oldRow['Area'] && newRow['Status'] === 'In-Field') {
+                                        transfers.push({
+                                            imos: imos,
+                                            name: `${newRow['First Name']} ${newRow['Last Name']}`,
+                                            oldZone: oldRow['Zone'],
+                                            oldDistrict: oldRow['District'],
+                                            newZone: newRow['Zone'],
+                                            newDistrict: newRow['District']
+                                        });
+                                    }
+                                }
+                            });
+
+                            displayResults(transfers);
+                        }
+                    });
+                }
+            });
+        }
+
+        function displayResults(transfers) {
+            const resultsDiv = document.getElementById('results');
+            if (transfers.length === 0) {
+                resultsDiv.innerHTML = '<p class="alert alert-info">No transfers found.</p>';
+                return;
+            }
+
+            const t = translations[currentLang];
+            let table = `
+                <table class="table table-striped table-hover sortable">
+                    <thead class="thead-dark">
+                        <tr>
+                            <th scope="col">${t.nameHeader}</th>
+                            <th scope="col">${t.oldZoneHeader}</th>
+                            <th scope="col">${t.oldDistrictHeader}</th>
+                            <th scope="col">${t.newZoneHeader}</th>
+                            <th scope="col">${t.newDistrictHeader}</th>
+                            <th scope="col" class="no-sort">${t.pictureHeader}</th>
+                            <th scope="col" class="no-sort">${t.travelHeader}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            transfers.forEach(missionary => {
+                const imageUrl = missionary.imos 
+                    ? `https://imos.churchofjesuschrist.org/ws/auth-controller/api-v1/pilot/orman/missionary/${missionary.imos}`
+                    : "https://via.placeholder.com/100";
+                
+                table += `
+                    <tr>
+                        <td>${missionary.name}</td>
+                        <td>${missionary.oldZone || 'N/A'}</td>
+                        <td>${missionary.oldDistrict || 'N/A'}</td>
+                        <td>${missionary.newZone || 'N/A'}</td>
+                        <td>${missionary.newDistrict || 'N/A'}</td>
+                        <td><img src="${imageUrl}" alt="Missionary Picture" class="img-thumbnail"></td>
+                        <td>
+                            <select class="form-select">
+                                <option value="plane">${t.travelOptions.plane}</option>
+                                <option value="bus">${t.travelOptions.bus}</option>
+                                <option value="ride">${t.travelOptions.ride}</option>
+                                <option value="taxi">${t.travelOptions.taxi}</option>
+                            </select>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            table += `
+                    </tbody>
+                </table>
+            `;
+
+            resultsDiv.innerHTML = table;
+            
+            // Initialize the sortable table
+            const sortable = new Sortable(document.querySelector('.sortable'));
+        }
+    </script>
+</body>
+</html>
