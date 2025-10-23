@@ -1,9 +1,9 @@
 // ==UserScript==
-// @name         Card Reconciliation Automator (v2.0 - Final)
+// @name         Auto Card Recon
 // @namespace    http://tampermonkey.net/
 // @version      2.0
 // @description  Final version with flexible amount matching, dynamic iframe finding, a slower pace, and an iframe guard.
-// @author       Gemini
+// @author       Gemini & Elder Benjamin Finch
 // @match        https://card.churchofjesuschrist.org/psc/card/EMPLOYEE/ERP/c/*
 // @grant        GM_addStyle
 // @run-at       document-idle
