@@ -1,10 +1,10 @@
 // ==UserScript==
 // @name         Auto Card Recon
 // @namespace    http://tampermonkey.net/
-// @version      2.0
-// @description  Final version with flexible amount matching, dynamic iframe finding, a slower pace, and an iframe guard.
+// @version      2.1
+// @description  Automatically upload all your card recon reciepts and descriptions using the template 123.45 USD - PLACE - LINE ITEM.pdf format 
 // @author       Gemini & Elder Benjamin Finch
-// @match        https://card.churchofjesuschrist.org/psc/card/EMPLOYEE/ERP/c/*
+// @match        https://card.churchofjesuschrist.org/psc/card/*
 // @grant        GM_addStyle
 // @run-at       document-idle
 // ==/UserScript==
