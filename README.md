@@ -37,7 +37,7 @@ The script should now be installed. Repeat this process for all the scripts you 
 
 <details>
 <summary>Auto Card Recon</summary>
-First download the script using the steps above.
+First install Tampermonkey using the steps above. Then download the [Auto Card Recon Script](https://greasyfork.org/en/scripts/553490-auto-card-recon).
 
 ## 1. How to Name Your PDFs
 
