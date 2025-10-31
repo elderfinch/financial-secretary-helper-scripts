@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         M-Pesa CSV Extractor
 // @namespace    https://openai.com
-// @version      1.1
+// @version      1.2
 // @description  Extracts M-Pesa messages from messages.google.com and creates a CSV
 // @match        https://messages.google.com/web/*
 // @grant        none
@@ -189,6 +189,24 @@
                 continue;
             }
 
+            const engTransfer = message.match(
+                /([A-Z0-9]{11,12})\s+Confirmed\.\s*([\d,]+\.\d{2})MT\s+sent(?:\s+and\s+the\s+fee\s+was\s+([\d,]+\.\d{2})MT)?\s+to\s+(\d+)[\s\S]*?on\s+(\d{1,2})\/(\d{1,2})\/(\d{2})[\s\S]*?New\s+M-Pesa\s+balance\s+is\s+([\d,]+\.\d{2})MT/i
+            );
+            if (engTransfer) {
+                const [_, code, value, fee = '0.00', recipient, day, month, year, balance] = engTransfer;
+                const formattedDate = `${day.padStart(2, '0')}/${month.padStart(2, '0')}/20${year}`;
+                rows.push([
+                    rows.length + 1,
+                    code,
+                    normalizeAmount(value),
+                    formattedDate,
+                    normalizeAmount(fee),
+                    recipient,
+                    normalizeAmount(balance)
+                ]);
+                continue;
+            }
+
             const withdraw = message.match(
                 /Confirmado\s+([A-Z0-9]{11,12})[\s\S]*?Aos\s+(\d{1,2})\/(\d{1,2})\/(\d{2})[\s\S]*?levantaste\s+([\d,]+\.\d{2})MT[\s\S]*?taxa\s+foi\s+de\s+([\d,]+\.\d{2})MT/i
             );
@@ -243,6 +261,25 @@
                 continue;
             }
 
+            const engCompra2 = message.match(
+                /([A-Z0-9]{11,12})\s+Confirmed\.\s*We\s+registered\s+a\s+purchasing\s+operation\s+of\s+([\d,]+\.\d{2})MT\s+to\s+([^0-9]+?)\s+on\s+(\d{1,2})\/(\d{1,2})\/(\d{2})[\s\S]*?balance\s+is\s+([\d,]+\.\d{2})MT/i
+            );
+            if (engCompra2) {
+                const [_, code, value, merchantRaw, day, month, year, balance] = engCompra2;
+                const merchant = merchantRaw.trim();
+                const formattedDate = `${day.padStart(2, '0')}/${month.padStart(2, '0')}/20${year}`;
+                rows.push([
+                    rows.length + 1,
+                    code,
+                    normalizeAmount(value),
+                    formattedDate,
+                    '0.00',
+                    merchant,
+                    normalizeAmount(balance)
+                ]);
+                continue;
+            }
+
 
         }
 
@@ -252,7 +289,7 @@
         }
 
         const csvContent = [
-            ['Numero', 'Codigo M-Pesa', 'Valor', 'Data', 'Taxa', 'Agente/Recipiente', 'Saldo Final'],
+            ['#', 'MPESA Code', 'Cost', 'Date', 'Fee', 'Phone Number', 'Final Balance'],
             ...rows
         ].map(row => row.map(field => `"${field}"`).join(';')).join('\r\n');
 
