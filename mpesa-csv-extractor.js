@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         M-Pesa CSV Extractor
 // @namespace    https://openai.com
-// @version      1.2
+// @version      1.3
 // @description  Extracts M-Pesa messages from messages.google.com and creates a CSV
 // @match        https://messages.google.com/web/*
 // @grant        none
@@ -206,6 +206,27 @@
                 ]);
                 continue;
             }
+
+            // *** NEW BLOCK ADDED HERE ***
+            const engCompra1 = message.match(
+                 /([A-Z0-9]{11,12})\s+Confirmed\.\s*([\d,]+\.\d{2})MT\s+sent(?:\s+and\s+the\s+fee\s+was\s+([\d,]+\.\d{2})MT)?\s+to\s+business\s+(.+?)\s+for\s+account[\s\S]*?on\s+(\d{1,2})\/(\d{1,2})\/(\d{2})[\s\S]*?New\s+M-Pesa\s+balance\s+is\s+([\d,]+\.\d{2})MT/i
+            );
+            if (engCompra1) {
+                const [_, code, value, fee = '0.00', merchantRaw, day, month, year, balance] = engCompra1;
+                const merchant = merchantRaw.trim();
+                const formattedDate = `${day.padStart(2, '0')}/${month.padStart(2, '0')}/20${year}`;
+                rows.push([
+                    rows.length + 1,
+                    code,
+                    normalizeAmount(value),
+                    formattedDate,
+                    normalizeAmount(fee),
+                    merchant,
+                    normalizeAmount(balance)
+                ]);
+                continue;
+            }
+            // *** END OF NEW BLOCK ***
 
             const withdraw = message.match(
                 /Confirmado\s+([A-Z0-9]{11,12})[\s\S]*?Aos\s+(\d{1,2})\/(\d{1,2})\/(\d{2})[\s\S]*?levantaste\s+([\d,]+\.\d{2})MT[\s\S]*?taxa\s+foi\s+de\s+([\d,]+\.\d{2})MT/i
