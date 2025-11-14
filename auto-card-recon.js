@@ -1,45 +1,44 @@
 // ==UserScript==
 // @name         Auto Card Recon
 // @namespace    http://tampermonkey.net/
-// @version      2.1
-// @description  Automatically upload all your card recon reciepts and descriptions using the template 123.45 USD - PLACE - LINE ITEM.pdf format 
+// @version      2.4
+// @description  Uploads card recon receipts, descriptions, and auto-fills Accounting from PDF metadata. Fixed upload stalling issues.
 // @author       Gemini & Elder Benjamin Finch
 // @match        https://card.churchofjesuschrist.org/psc/card/*
 // @grant        GM_addStyle
+// @require      https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js
 // @run-at       document-idle
 // ==/UserScript==
 
 (function() {
     'use strict';
 
-    // --- SCRIPT INITIALIZATION GUARD ---
-    if (window.self !== window.top) {
-        console.log('[Recon Script] Running inside an iframe, aborting.');
-        return;
+    if (window.self !== window.top) return;
+
+    if (typeof pdfjsLib !== 'undefined') {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     }
 
-    // --- UTILITY AND HELPER FUNCTIONS ---
-
-    const log = (message) => console.log(`[Recon Script] ${message}`);
+    const log = (msg) => console.log(`[Recon v2.3] ${msg}`);
     const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
     const waitForElement = (selector, context = document, timeout = 30000) => {
         return new Promise((resolve, reject) => {
-            log(`Waiting for element: "${selector}"`);
+            log(`Waiting for: "${selector}"`); // Added logging
             const intervalTime = 100;
             let elapsedTime = 0;
             const interval = setInterval(() => {
                 const element = context.querySelector(selector);
-                if (element) {
-                    log(`Found element: "${selector}"`);
+                if (element) { // This is the simple check from v2.1
+                    log(`Found: "${selector}"`);
                     clearInterval(interval);
                     resolve(element);
                 } else {
                     elapsedTime += intervalTime;
                     if (elapsedTime >= timeout) {
                         clearInterval(interval);
-                        const errorMsg = `Timeout waiting for element: "${selector}"`;
-                        log(`TIMEOUT: ${errorMsg}`);
+                        const errorMsg = `Timeout waiting for: "${selector}"`;
+                        log(`FATAL ERROR: ${errorMsg}`); // Match your log style
                         reject(new Error(errorMsg));
                     }
                 }
@@ -47,340 +46,203 @@
         });
     };
 
-    const findNewestIframe = async (currentIframeCount, timeout = 20000) => {
-        log(`Waiting for a new iframe to appear. Current count: ${currentIframeCount}`);
-        return new Promise((resolve, reject) => {
-            let elapsedTime = 0;
-            const interval = setInterval(() => {
-                const allIframes = document.querySelectorAll('iframe[id^="ptModFrame_"]');
-                if (allIframes.length > currentIframeCount) {
-                    const newIframe = allIframes[allIframes.length - 1];
-                    log(`Detected new iframe: ${newIframe.id}`);
-                    clearInterval(interval);
-                    resolve(newIframe);
-                } else {
-                    elapsedTime += 250;
-                    if (elapsedTime >= timeout) {
-                        clearInterval(interval);
-                        reject(new Error(`Timeout: Waited for a new iframe but count did not increase from ${currentIframeCount}.`));
+    const findNewestIframe = async (currentCount, timeout = 30000) => {
+        log(`Looking for iframe > ${currentCount}...`);
+        const start = Date.now();
+        while (Date.now() - start < timeout) {
+            const frames = document.querySelectorAll('iframe[id^="ptModFrame_"]');
+            if (frames.length > currentCount) {
+                const newFrame = frames[frames.length - 1];
+                // Wait for it to have content
+                try {
+                    if (newFrame.contentDocument && newFrame.contentDocument.body.innerHTML.length > 50) {
+                         log(`Found new iframe: ${newFrame.id}`);
+                         return newFrame;
                     }
-                }
-            }, 250);
-        });
+                } catch (e) { /* ignore cross-origin momentarily */ }
+            }
+            await sleep(500);
+        }
+        throw new Error("Timeout waiting for new iframe to load.");
     };
 
+    // --- METADATA ---
+    async function extractKeywordsFromPDF(file) {
+        try {
+            const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+            const meta = await pdf.getMetadata();
+            if (meta?.info?.Keywords) {
+                const kw = meta.info.Keywords.trim();
+                console.log(kw);
+                try { return JSON.parse(kw); } catch (e) { return kw.split(/[,; \t]+/).filter(k => k.trim()); }
+            }
+        } catch (e) { log(`Metadata error for ${file.name}: ${e.message}`); }
+        return null;
+    }
 
-    // --- UI COMPONENTS ---
-
+    // --- GUI ---
     function addStyles() {
         GM_addStyle(`
-            #recon-float-button {
-                position: fixed; bottom: 20px; right: 20px; z-index: 9999;
-                background-color: #007bff; color: white; border: none; border-radius: 5px;
-                padding: 10px 15px; font-size: 16px; cursor: pointer;
-                box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-            }
-            #recon-float-button:hover { background-color: #0056b3; }
-            #recon-float-button:disabled { background-color: #cccccc; cursor: not-allowed; }
-            .recon-modal-overlay {
-                position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-                background: rgba(0, 0, 0, 0.7); z-index: 10000; display: flex;
-                justify-content: center; align-items: center;
-            }
-            .recon-modal-content {
-                background: white; padding: 20px; border-radius: 8px;
-                width: 80%; max-width: 800px; max-height: 90vh; overflow-y: auto;
-            }
-            .recon-modal-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-            .recon-modal-table th, .recon-modal-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-            .recon-modal-table th { background-color: #f2f2f2; }
-            .recon-modal-input { width: 95%; padding: 5px; }
-            .recon-modal-footer { margin-top: 20px; text-align: right; }
+            #recon-float-btn { position: fixed; bottom: 20px; right: 20px; z-index: 9999; padding: 12px 20px; background: #007bff; color: white; border: none; border-radius: 50px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.3); font-size: 16px; }
+            #recon-float-btn:hover { background: #0056b3; }
+            #recon-float-btn:disabled { background: #999; cursor: wait; }
         `);
     }
 
-    function createFloatingButton() {
-        const button = document.createElement('button');
-        button.id = 'recon-float-button';
-        button.textContent = 'Start Recon';
-        document.body.appendChild(button);
-
-        const fileInput = document.createElement('input');
-        fileInput.type = 'file';
-        fileInput.multiple = true;
-        fileInput.accept = '.pdf';
-        fileInput.style.display = 'none';
-        document.body.appendChild(fileInput);
-
-        button.addEventListener('click', () => fileInput.click());
-        fileInput.addEventListener('change', handleFileSelect);
+    function createUI() {
+        const btn = document.createElement('button');
+        btn.id = 'recon-float-btn';
+        btn.textContent = 'Start Recon';
+        document.body.appendChild(btn);
+        const fileIn = document.createElement('input');
+        fileIn.type = 'file'; fileIn.multiple = true; fileIn.accept = '.pdf'; fileIn.style.display = 'none';
+        document.body.appendChild(fileIn);
+        btn.onclick = () => fileIn.click();
+        fileIn.onchange = handleFiles;
     }
 
+    // --- MAIN LOOP ---
+    async function handleFiles(e) {
+        const btn = document.getElementById('recon-float-btn');
+        btn.disabled = true; btn.textContent = 'Processing...';
+        try {
+            const files = Array.from(e.target.files);
+            if (!files.length) return;
 
-    // --- CORE LOGIC ---
-
-    async function handleFileSelect(event) {
-        const button = document.getElementById('recon-float-button');
-        button.textContent = 'Processing...';
-        button.disabled = true;
-
-        const files = event.target.files;
-        if (!files.length) {
-            log('No files selected.');
-            button.textContent = 'Start Recon';
-            button.disabled = false;
-            return;
-        }
-
-        log(`Selected ${files.length} files.`);
-        const { validReceipts, invalidReceipts } = parseFileNames(Array.from(files));
-
-        let allReceipts = validReceipts;
-        if (invalidReceipts.length > 0) {
-            try {
-                const manuallyCorrected = await showValidationModal(invalidReceipts);
-                allReceipts = [...validReceipts, ...manuallyCorrected];
-            } catch (error) {
-                log('Modal was cancelled by user.');
-                button.textContent = 'Start Recon';
-                button.disabled = false;
-                return;
-            }
-        }
-
-        if (allReceipts.length > 0) {
-            await processTransactions(allReceipts);
-        } else {
-            log('No valid receipts to process.');
-        }
-
-        button.textContent = 'Done!';
-        setTimeout(() => {
-            button.textContent = 'Start Recon';
-            button.disabled = false;
-        }, 5000);
-    }
-
-    function parseFileNames(files) {
-        const validReceipts = [];
-        const invalidReceipts = [];
-        files.forEach(file => {
-            const name = file.name.replace(/\.pdf$/i, '');
-            const parts = name.split('-').map(p => p.trim());
-            if (parts.length >= 2) {
-                const valueAndCurrency = parts[0].split(' ');
-                const value = parseFloat(valueAndCurrency[0].replace(/,/g, ''));
-                const currency = valueAndCurrency.length > 1 ? valueAndCurrency[1].toUpperCase() : 'UNKNOWN';
-                const lineItem = parts[parts.length - 1];
-                if (!isNaN(value) && currency !== 'UNKNOWN') {
-                    validReceipts.push({ file, value, currency, lineItem });
-                } else {
-                    invalidReceipts.push({ file });
-                }
-            } else {
-                invalidReceipts.push({ file });
-            }
-        });
-        log(`Parsed files: ${validReceipts.length} valid, ${invalidReceipts.length} invalid.`);
-        return { validReceipts, invalidReceipts };
-    }
-
-    function showValidationModal(invalidReceipts) {
-        return new Promise((resolve, reject) => {
-            const modalOverlay = document.createElement('div');
-            modalOverlay.className = 'recon-modal-overlay';
-            const tableRows = invalidReceipts.map((receipt) => `
-                <tr>
-                    <td>${receipt.file.name}</td>
-                    <td><input type="text" class="recon-modal-input" data-type="value" placeholder="e.g., 123.45 MZN"></td>
-                    <td><input type="text" class="recon-modal-input" data-type="lineItem" placeholder="e.g., DIESEL FUEL"></td>
-                </tr>
-            `).join('');
-
-            modalOverlay.innerHTML = `
-                <div class="recon-modal-content">
-                    <h2>Invalid Filenames</h2>
-                    <p>Please correct the value and line item for the following files:</p>
-                    <table class="recon-modal-table">
-                        <thead><tr><th>Filename</th><th>Value (e.g., 123.45 MZN)</th><th>Line Item</th></tr></thead>
-                        <tbody>${tableRows}</tbody>
-                    </table>
-                    <div class="recon-modal-footer">
-                        <button id="recon-modal-cancel">Cancel</button>
-                        <button id="recon-modal-submit" style="margin-left: 10px;">Submit</button>
-                    </div>
-                </div>`;
-            document.body.appendChild(modalOverlay);
-
-            document.getElementById('recon-modal-submit').addEventListener('click', () => {
-                const correctedReceipts = [];
-                let allValid = true;
-                const rows = modalOverlay.querySelectorAll('tbody tr');
-                rows.forEach((row, index) => {
-                    const valueInput = row.querySelector('input[data-type="value"]');
-                    const lineItemInput = row.querySelector('input[data-type="lineItem"]');
-                    const valueStr = valueInput.value.trim();
-                    const lineItem = lineItemInput.value.trim();
-                    if (!valueStr || !lineItem) {
-                        allValid = false;
-                        valueInput.style.borderColor = valueStr ? '' : 'red';
-                        lineItemInput.style.borderColor = lineItem ? '' : 'red';
-                        return;
-                    }
-                    const valueParts = valueStr.split(' ');
-                    const value = parseFloat(valueParts[0].replace(/,/g, ''));
-                    const currency = valueParts.length > 1 ? valueParts[1].toUpperCase() : 'UNKNOWN';
-                    if (isNaN(value) || currency === 'UNKNOWN') {
-                        allValid = false;
-                        valueInput.style.borderColor = 'red';
-                        return;
-                    }
-                    correctedReceipts.push({ file: invalidReceipts[index].file, value, currency, lineItem });
-                });
-
-                if (allValid) {
-                    document.body.removeChild(modalOverlay);
-                    resolve(correctedReceipts);
-                } else {
-                    alert('Please fill all fields correctly.');
-                }
-            });
-
-            document.getElementById('recon-modal-cancel').addEventListener('click', () => {
-                document.body.removeChild(modalOverlay);
-                reject(new Error("User cancelled the modal."));
-            });
-        });
-    }
-
-    async function processTransactions(receipts) {
-        log('Starting transaction processing...');
-        const processedIndices = new Set();
-        for (const receipt of receipts) {
-            log(`Searching for transaction for: ${receipt.file.name}`);
-            const transactionRows = document.querySelectorAll('#win0sidedivEX_SHEET_DTL_GROUP\\$0 ul.ps_grid-body > li.ps_grid-row');
-            let matchFound = false;
-            for (let i = 0; i < transactionRows.length; i++) {
-                if (processedIndices.has(i)) continue;
-                const row = transactionRows[i];
-                const amountEl = row.querySelector(`[id^='MONETARY_AMT_DTL\\$']`);
-                const currencyEl = row.querySelector(`[id^='CURRENCY_CD_DTL\\$']`);
-                if (amountEl && currencyEl) {
-                    const pageAmount = parseFloat(amountEl.textContent.replace(/,/g, ''));
-                    const pageCurrency = currencyEl.textContent.trim().toUpperCase();
-
-                    // --- THIS IS THE UPDATED LINE ---
-                    // Instead of exact '===', check if the difference is less than a cent.
-                    if (Math.abs(pageAmount - receipt.value) < 0.01 && pageCurrency === receipt.currency) {
-                        log(`Match found for ${receipt.value} ${receipt.currency}`);
-                        try {
-                            await processSingleTransaction(row, receipt);
-                            processedIndices.add(i);
-                            matchFound = true;
-                            break;
-                        } catch (e) {
-                            log(`ERROR processing transaction: ${e.message}`);
-                            alert(`An error occurred processing ${receipt.file.name}. Check console. Continuing...`);
-                            break;
-                        }
+            log(`Reading ${files.length} files...`);
+            const receipts = [];
+            for (const file of files) {
+                const name = file.name.replace(/\.pdf$/i, '');
+                const parts = name.split('-');
+                if (parts.length >= 2) {
+                    const [valStr, cur] = parts[0].trim().split(' ');
+                    const val = parseFloat(valStr.replace(/,/g, ''));
+                    if (!isNaN(val)) {
+                        receipts.push({
+                            file, value: val,
+                            currency: (cur || 'USD').toUpperCase(),
+                            lineItem: parts[parts.length - 1].trim(),
+                            keywords: await extractKeywordsFromPDF(file)
+                        });
                     }
                 }
             }
-            if (!matchFound) {
-                log(`No matching transaction found for receipt: ${receipt.file.name}`);
+
+            if (!receipts.length) { alert("No valid filenames found (Format: 123.45 USD - Description.pdf)"); return; }
+
+            for (const r of receipts) {
+                await processReceipt(r);
             }
+            alert("Processing Complete!");
+        } catch (err) {
+            log("FATAL ERROR: " + err.message);
+            alert("Error: " + err.message);
+        } finally {
+            btn.disabled = false; btn.textContent = 'Start Recon';
+            e.target.value = '';
         }
-        log('All processing complete.');
     }
 
+    async function processReceipt(r) {
+        log(`>>> Processing: ${r.lineItem} (${r.value})`);
+        const rows = document.querySelectorAll('li.ps_grid-row');
+        let row = null;
 
-    // --- TRANSACTION PROCESSING FUNCTION ---
+        for (const rCandidate of rows) {
+            const amt = rCandidate.querySelector("[id^='MONETARY_AMT_DTL\\$']")?.textContent.replace(/,/g, '');
+            if (amt && Math.abs(parseFloat(amt) - r.value) < 0.01) {
+                row = rCandidate;
+                break;
+            }
+        }
 
-    async function processSingleTransaction(rowElement, receipt) {
-        log(`--- Starting processing for: ${receipt.lineItem} ---`);
+        if (!row) { log(`No match for ${r.value}`); return; }
 
-        // Step 1: Set description, click away, and wait patiently.
-        log("Step 1: Setting description on main page.");
-        rowElement.click();
-        await sleep(4000);
-        const descriptionBox = await waitForElement('#DESCR\\$0');
-        descriptionBox.value = receipt.lineItem;
-        descriptionBox.dispatchEvent(new Event('change', { bubbles: true }));
-        log(`Set description to: "${receipt.lineItem}"`);
-        descriptionBox.blur();
-        log("Clicked away from description box. Waiting for system to process...");
-        await sleep(4000);
+        // 1. Set Description
+        row.click();
+        log("Waiting for row details to load...");
+        await sleep(4500); // Increased from 2000
 
-        const attachButton = await waitForElement("a[id^='EX_LINE_WRK_ATTACH_PB']");
-        let currentIframeCount = document.querySelectorAll('iframe[id^="ptModFrame_"]').length;
-        attachButton.click();
-        log('Clicked "Attach Receipt".');
+        const desc = await waitForElement('#DESCR\\$0');
+        desc.focus(); desc.value = r.lineItem; desc.dispatchEvent(new Event('change', { bubbles: true })); desc.blur();
 
-        // Step 2: Dynamically find the first modal iframe.
-        const iframe0 = await findNewestIframe(currentIframeCount);
-        log(`Waiting for content in ${iframe0.id}...`);
+        // REVERTED to the longer, more reliable sleep from v2.1
+        // Waiting for the "change" event to be processed by the server.
+        log("Waiting for description change to process...");
+        await sleep(4500); // Increased from 3000
+        // --- END FIX ---
+
+        // 2. Attach File
+        let iframes = document.querySelectorAll('iframe').length;
+        (await waitForElement("a[id^='EX_LINE_WRK_ATTACH_PB']")).click();
+        const f1 = await findNewestIframe(iframes);
+        const d1 = f1.contentDocument;
+
+        iframes = document.querySelectorAll('iframe').length;
+        (await waitForElement("a[id^='C_EX_ATT_WRK_ATTACHADD']", d1)).click();
+        const f2 = await findNewestIframe(iframes);
+
+        log("Waiting for file upload modal to load...");
         await sleep(3500);
-        const iframeDoc0 = iframe0.contentDocument || iframe0.contentWindow.document;
-        if (!iframeDoc0) throw new Error("Could not get content document from first iframe.");
-        log(`Successfully accessed document of ${iframe0.id}.`);
+        const d2 = f2.contentDocument;
 
-        const addAttachmentButton = await waitForElement("a[id^='C_EX_ATT_WRK_ATTACHADD']", iframeDoc0);
-        currentIframeCount = document.querySelectorAll('iframe[id^="ptModFrame_"]').length;
-        addAttachmentButton.click();
-        log("Clicked 'Add Attachment'.");
+        const fileIn = await waitForElement('input[type="file"]#\\#ICOrigFileName', d2);
 
-        // Step 3: Dynamically find the second (nested) modal iframe.
-        const iframe1 = await findNewestIframe(currentIframeCount);
-        log(`Waiting for content in ${iframe1.id}...`);
-        await sleep(3500);
-        const iframeDoc1 = iframe1.contentDocument || iframe1.contentWindow.document;
-        if (!iframeDoc1) throw new Error("Could not get content document from second iframe.");
-        log(`Successfully accessed document of ${iframe1.id}.`);
-
-        // File upload process inside the second iframe.
-        const fileInput = await waitForElement('input[type="file"]#\\#ICOrigFileName', iframeDoc1);
-        const dataTransfer = new DataTransfer();
-        dataTransfer.items.add(receipt.file);
-        fileInput.files = dataTransfer.files;
-        fileInput.dispatchEvent(new Event('change', { bubbles: true }));
-        log(`Attached file: ${receipt.file.name}`);
+        const dt = new DataTransfer(); dt.items.add(r.file);
+        fileIn.files = dt.files;
+        fileIn.dispatchEvent(new Event('input', { bubbles: true }));
+        fileIn.dispatchEvent(new Event('change', { bubbles: true }));
+        fileIn.blur();
         await sleep(1500);
 
-        const uploadButton = await waitForElement('a#\\#ICUpload', iframeDoc1);
-        if (uploadButton && uploadButton.style.display !== 'none') {
-            uploadButton.click();
-            log('Clicked "Upload"');
-        } else { throw new Error('Upload button not found or not visible.'); }
+        log("Clicking upload...");
+        (await waitForElement('a#\\#ICUpload', d2)).click();
 
-        await waitForElement('.ps_attach-completetext', iframeDoc1, 60000);
-        log('Upload complete.');
-        await sleep(2000);
+        // WAIT FOR UPLOAD - ROBUST METHOD
+        try {
+            await waitForElement('.ps_attach-completetext', d2, 45000);
+            log("Upload success text detected.");
+        } catch (e) {
+            log("Upload text timeout. Checking if file exists in list anyway...");
+            const fileList = d2.body.textContent;
+            if (!fileList.includes(r.file.name)) throw new Error("Upload failed - file not found in list.");
+        }
 
-        await (await waitForElement('a#\\#ICOK', iframeDoc1)).click();
-        log(`Clicked "Done" in ${iframe1.id}, closing it.`);
+        (await waitForElement('a#\\#ICOK', d2)).click();
+        await sleep(3000);
 
-        // Step 4: Return to the first iframe's context and finish.
-        log(`Step 4: Context is now back in ${iframe0.id}.`);
-        await sleep(4000);
+        // Save Attachment Modal
+        const attDesc = await waitForElement("input[id^='ATTACH_DESCR\\$']", d1);
+        attDesc.value = r.lineItem; attDesc.dispatchEvent(new Event('change', { bubbles: true }));
+        (await waitForElement("a#\\#ICSave", d1)).click();
+        await sleep(5000); // Wait for main page to settle
 
-        const attachDescriptionInput = await waitForElement("input[id^='ATTACH_DESCR\\$']", iframeDoc0);
-        attachDescriptionInput.value = receipt.lineItem;
-        attachDescriptionInput.dispatchEvent(new Event('change', { bubbles: true }));
-        log(`Set attachment description to: "${receipt.lineItem}"`);
-        await sleep(1500);
+        // 3. Accounting
+        if (r.keywords?.length >= 2) {
+            log(`Doing Accounting: ${r.keywords.join(', ')}`);
+            iframes = document.querySelectorAll('iframe').length;
+            (await waitForElement("a[id*='ACCTING_DETAIL']")).click();
+            const af = await findNewestIframe(iframes);
+            const ad = af.contentDocument;
 
-        await (await waitForElement("a#\\#ICSave", iframeDoc0)).click();
-        log(`Finished processing. Closing main attachment modal.`);
+            const setVal = async (sel, val) => {
+                const el = await waitForElement(sel, ad);
+                el.focus(); el.value = val;
+                el.dispatchEvent(new Event('change', { bubbles: true })); el.blur();
+                await sleep(1000);
+            };
 
-        log(`--- Completed: ${receipt.lineItem}. Pausing before next transaction... ---`);
-        await sleep(7000);
+            await setVal('input[id^="DEPTID\\$"]', "1863" + r.keywords[0]);
+            await setVal('input[id^="ACCOUNT\\$"]', r.keywords[1]);
+
+            await sleep(2000);
+
+            (await waitForElement("a#DONE_PB", ad)).click();
+            await sleep(4000);
+        }
+        log(`<<< Done: ${r.lineItem}`);
     }
 
-
-    // --- SCRIPT INITIALIZATION ---
-
-    log('Script loaded. Initializing on main page.');
+    createUI();
     addStyles();
-    createFloatingButton();
-
 })();
