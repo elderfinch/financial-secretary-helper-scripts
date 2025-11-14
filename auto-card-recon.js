@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Auto Card Recon
 // @namespace    http://tampermonkey.net/
-// @version      2.4
+// @version      2.5
 // @description  Uploads card recon receipts, descriptions, and auto-fills Accounting from PDF metadata. Fixed upload stalling issues.
 // @author       Gemini & Elder Benjamin Finch
 // @match        https://card.churchofjesuschrist.org/psc/card/*
@@ -160,17 +160,15 @@
 
         // 1. Set Description
         row.click();
+        
         log("Waiting for row details to load...");
-        await sleep(4500); // Increased from 2000
-
+        await sleep(4500); // Using the patient 4.5s sleep
+        
         const desc = await waitForElement('#DESCR\\$0');
         desc.focus(); desc.value = r.lineItem; desc.dispatchEvent(new Event('change', { bubbles: true })); desc.blur();
-
-        // REVERTED to the longer, more reliable sleep from v2.1
-        // Waiting for the "change" event to be processed by the server.
+        
         log("Waiting for description change to process...");
-        await sleep(4500); // Increased from 3000
-        // --- END FIX ---
+        await sleep(4500); // Using the patient 4.5s sleep
 
         // 2. Attach File
         let iframes = document.querySelectorAll('iframe').length;
@@ -183,9 +181,9 @@
         const f2 = await findNewestIframe(iframes);
 
         log("Waiting for file upload modal to load...");
-        await sleep(3500);
+        await sleep(3500); 
         const d2 = f2.contentDocument;
-
+        
         const fileIn = await waitForElement('input[type="file"]#\\#ICOrigFileName', d2);
 
         const dt = new DataTransfer(); dt.items.add(r.file);
@@ -225,16 +223,34 @@
             const af = await findNewestIframe(iframes);
             const ad = af.contentDocument;
 
+            // --- START FIX ---
             const setVal = async (sel, val) => {
                 const el = await waitForElement(sel, ad);
-                el.focus(); el.value = val;
-                el.dispatchEvent(new Event('change', { bubbles: true })); el.blur();
-                await sleep(1000);
+                el.focus(); 
+                el.value = val;
+                el.dispatchEvent(new Event('change', { bubbles: true }));
+                
+                // NEW: Simulate pressing Enter to trigger validation
+                log(`Simulating Enter on: ${sel}`);
+                el.dispatchEvent(new KeyboardEvent('keydown', {
+                    key: 'Enter',
+                    keyCode: 13,
+                    code: 'Enter',
+                    which: 13,
+                    bubbles: true,
+                    cancelable: true
+                }));
+                
+                el.blur();
+                // Give it a moment to process the validation
+                await sleep(1500); 
             };
+            // --- END FIX ---
 
             await setVal('input[id^="DEPTID\\$"]', "1863" + r.keywords[0]);
             await setVal('input[id^="ACCOUNT\\$"]', r.keywords[1]);
 
+            // Wait for any potential validation scripts to finish after the last 'Enter'
             await sleep(2000);
 
             (await waitForElement("a#DONE_PB", ad)).click();
