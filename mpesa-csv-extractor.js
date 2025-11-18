@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         M-Pesa CSV Extractor (Strip 258)
+// @name         M-Pesa CSV Extractor
 // @namespace    https://openai.com
 // @version      1.6
-// @description  Extracts M-Pesa messages and removes 258 prefix from phone numbers
+// @description  Extracts M-Pesa messages into a CSV of transactions
 // @match        https://messages.google.com/web/*
 // @grant        none
 // @run-at       document-idle
