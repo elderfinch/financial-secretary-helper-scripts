@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         M-Pesa CSV Extractor
+// @name         M-Pesa CSV Extractor (Strip 258)
 // @namespace    https://openai.com
-// @version      1.3
-// @description  Extracts M-Pesa messages from messages.google.com and creates a CSV
+// @version      1.6
+// @description  Extracts M-Pesa messages and removes 258 prefix from phone numbers
 // @match        https://messages.google.com/web/*
 // @grant        none
 // @run-at       document-idle
@@ -147,6 +147,15 @@
         return parseFloat(str.replace(/,/g, '').replace(/[^\d.]/g, '')).toFixed(2);
     }
 
+    // ** CLEAN PHONE NUMBERS (Remove 258 prefix only) **
+    function normalizePhoneNumber(str) {
+        if (!str) return "N/A";
+        if (str.startsWith('258')) {
+            return str.substring(3);
+        }
+        return str;
+    }
+
     function processMessages(startDate) {
         const rawMessages = Array.from(document.querySelectorAll('mws-text-message-part'))
             .map(el => el.getAttribute('aria-label')?.trim())
@@ -183,7 +192,7 @@
                     normalizeAmount(value),
                     formattedDate,
                     normalizeAmount(fee),
-                    recipient,
+                    normalizePhoneNumber(recipient), // remove 258 if present
                     normalizeAmount(balance)
                 ]);
                 continue;
@@ -201,13 +210,12 @@
                     normalizeAmount(value),
                     formattedDate,
                     normalizeAmount(fee),
-                    recipient,
+                    normalizePhoneNumber(recipient), // remove 258 if present
                     normalizeAmount(balance)
                 ]);
                 continue;
             }
 
-            // *** NEW BLOCK ADDED HERE ***
             const engCompra1 = message.match(
                  /([A-Z0-9]{11,12})\s+Confirmed\.\s*([\d,]+\.\d{2})MT\s+sent(?:\s+and\s+the\s+fee\s+was\s+([\d,]+\.\d{2})MT)?\s+to\s+business\s+(.+?)\s+for\s+account[\s\S]*?on\s+(\d{1,2})\/(\d{1,2})\/(\d{2})[\s\S]*?New\s+M-Pesa\s+balance\s+is\s+([\d,]+\.\d{2})MT/i
             );
@@ -226,7 +234,6 @@
                 ]);
                 continue;
             }
-            // *** END OF NEW BLOCK ***
 
             const withdraw = message.match(
                 /Confirmado\s+([A-Z0-9]{11,12})[\s\S]*?Aos\s+(\d{1,2})\/(\d{1,2})\/(\d{2})[\s\S]*?levantaste\s+([\d,]+\.\d{2})MT[\s\S]*?taxa\s+foi\s+de\s+([\d,]+\.\d{2})MT/i
@@ -301,6 +308,24 @@
                 continue;
             }
 
+            const engCompra3 = message.match(
+                /([A-Z0-9]{11,12})\s+Confirmed\.\s+We\s+registered\s+a\s+purchase\s+of\s+([\d,]+\.\d{2})MT\s+in\s+the\s+Merchant\s+(.+?)\s+on\s+(\d{1,2})\/(\d{1,2})\/(\d{2})[\s\S]*?Your\s+new\s+M-Pesa\s+balance\s+is\s+([\d,]+\.\d{2})MT/i
+            );
+            if (engCompra3) {
+                const [_, code, value, merchantRaw, day, month, year, balance] = engCompra3;
+                const merchant = merchantRaw.trim();
+                const formattedDate = `${day.padStart(2, '0')}/${month.padStart(2, '0')}/20${year}`;
+                rows.push([
+                    rows.length + 1,
+                    code,
+                    normalizeAmount(value),
+                    formattedDate,
+                    '0.00',
+                    merchant,
+                    normalizeAmount(balance)
+                ]);
+                continue;
+            }
 
         }
 
