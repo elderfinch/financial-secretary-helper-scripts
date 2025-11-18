@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         M-Pesa CSV Extractor
 // @namespace    https://openai.com
-// @version      1.6
+// @version      1.7
 // @description  Extracts M-Pesa messages into a CSV of transactions
 // @match        https://messages.google.com/web/*
 // @grant        none
