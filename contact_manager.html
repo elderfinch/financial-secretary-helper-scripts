@@ -1,0 +1,1037 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Missionary Contact Manager</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <style>
+        body {
+            background-color: #f5f7fa;
+        }
+        .main-section {
+            padding: 2rem 1.5rem;
+        }
+        .table-container {
+            overflow-x: auto;
+            min-height: 400px; /* Ensure space for dropdowns */
+        }
+        .table th {
+            white-space: nowrap;
+            cursor: grab;
+        }
+        .table td {
+            vertical-align: middle;
+        }
+        /* Adjusted width to accommodate the new button */
+        .table th[data-key="phone"],
+        .table td[data-key="phone"] {
+            min-width: 240px; 
+        }
+        .table td[data-key="verified"] {
+            text-align: center;
+        }
+        .is-placeholder {
+            background: #f0f0f0;
+            border: 2px dashed #ccc;
+        }
+        .modal-card-body {
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+        [contenteditable="true"]:focus {
+            outline: 2px solid #3273dc;
+            background-color: #fdfdbe;
+        }
+        .action-buttons button, .action-buttons .dropdown {
+            margin-right: 5px;
+        }
+        .column-toggle {
+            margin-bottom: 1rem;
+        }
+        .zone-header th {
+             background-color: #e9e9e9 !important;
+             font-weight: bold;
+             padding: 0.75em 1em;
+        }
+        .icon {
+            display: inline-flex;
+            align-items: center;
+        }
+        #restore-backup-input {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <section class="section main-section">
+        <div class="container">
+            <div class="level">
+                <div class="level-left">
+                    <div>
+                        <h1 class="title" data-lang-key="title">Missionary Contact Manager</h1>
+                        <p class="subtitle" data-lang-key="subtitle">Upload, manage, and export missionary contacts.</p>
+                    </div>
+                </div>
+                <div class="level-right">
+                    <div class="field">
+                        <label class="label" data-lang-key="languageLabel">Language</label>
+                        <div class="control">
+                            <div class="select">
+                                <select id="language-selector">
+                                    <option value="en">English</option>
+                                    <option value="pt">Português</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-content">
+                    <div class="field">
+                        <label class="label" data-lang-key="uploadHeader">1. Start with a New Roster</label>
+                        <div class="control">
+                             <input class="input is-primary" type="file" id="file-upload" accept=".xlsx, .xls, .csv">
+                        </div>
+                        <p class="help" data-lang-key="uploadHelp">Select the Excel or CSV file containing the missionary roster.</p>
+                    </div>
+                    <div class="is-divider" data-content="OR"></div>
+                     <div class="field">
+                        <label class="label" data-lang-key="restoreHeader">Restore From Backup</label>
+                         <div class="control">
+                             <label for="restore-backup-input" class="button is-warning is-fullwidth">
+                                 <span class="icon"><i data-lucide="upload"></i></span>
+                                 <span data-lang-key="restore">Restore a .json Backup File</span>
+                             </label>
+                             <input type="file" id="restore-backup-input" accept=".json">
+                        </div>
+                        <p class="help" data-lang-key="restoreHelp">Load a previously saved backup file to continue your work.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="main-content" class="mt-5" style="display: none;">
+                <div class="level">
+                     <div class="level-left">
+                        <div class="level-item">
+                            <button id="add-missionary-btn" class="button is-success">
+                                <span class="icon"><i data-lucide="user-plus"></i></span>
+                                <span data-lang-key="addNew">Add New Missionary</span>
+                            </button>
+                        </div>
+                    </div>
+                     <div class="level-right">
+                        <div class="level-item">
+                            <div class="dropdown is-hoverable is-right">
+                                <div class="dropdown-trigger">
+                                    <button class="button" aria-haspopup="true" aria-controls="dropdown-menu">
+                                        <span class="icon"><i data-lucide="settings"></i></span>
+                                        <span data-lang-key="columns">Columns</span>
+                                        <span class="icon is-small"><i data-lucide="chevron-down"></i></span>
+                                    </button>
+                                </div>
+                                <div class="dropdown-menu" id="column-toggle-menu" role="menu">
+                                    <div class="dropdown-content" id="column-toggle-container">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                         <div class="level-item">
+                             <div class="buttons has-addons">
+                                <button id="export-csv-btn" class="button is-info">
+                                    <span class="icon"><i data-lucide="file-spreadsheet"></i></span>
+                                    <span data-lang-key="exportCsv">Export CSV</span>
+                                </button>
+                                 <button id="export-changed-btn" class="button is-primary">
+                                    <span class="icon"><i data-lucide="file-diff"></i></span>
+                                    <span data-lang-key="exportChanged">Export Changed</span>
+                                </button>
+                                <button id="export-vcard-btn" class="button is-link">
+                                    <span class="icon"><i data-lucide="contact"></i></span>
+                                    <span data-lang-key="exportVcard">Export vCard</span>
+                                </button>
+                                <button id="backup-btn" class="button is-dark">
+                                    <span class="icon"><i data-lucide="save"></i></span>
+                                    <span data-lang-key="backup">Backup (JSON)</span>
+                                </button>
+                             </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="table-container">
+                    <table class="table is-bordered is-striped is-hoverable is-fullwidth">
+                        <thead id="table-head">
+                            </thead>
+                        <tbody id="table-body">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div id="mapping-modal" class="modal">
+        <div class="modal-background"></div>
+        <div class="modal-card">
+            <header class="modal-card-head">
+                <p class="modal-card-title" data-lang-key="mapColumnsTitle">2. Map Your Columns</p>
+            </header>
+            <section class="modal-card-body">
+                <p class="mb-4" data-lang-key="mapColumnsHelp">Please match the columns from your file to the required fields.</p>
+                <form id="mapping-form">
+                    </form>
+            </section>
+            <footer class="modal-card-foot">
+                <button id="process-data-btn" class="button is-success" data-lang-key="processData">Process Data</button>
+                <button id="cancel-mapping-btn" class="button" data-lang-key="cancel">Cancel</button>
+            </footer>
+        </div>
+    </div>
+    
+    <div id="missionary-modal" class="modal">
+        <div class="modal-background"></div>
+        <div class="modal-card">
+            <header class="modal-card-head">
+                <p class="modal-card-title" id="missionary-modal-title">Add New Missionary</p>
+                <button class="delete" aria-label="close"></button>
+            </header>
+            <section class="modal-card-body">
+                <form id="missionary-form">
+                    <input type="hidden" id="missionary-id">
+                    <div class="field">
+                        <label class="label" data-lang-key="nameLabel">Name (Last, First)</label>
+                        <div class="control">
+                            <input class="input" type="text" id="modal-name" placeholder="Doe, John" required>
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label class="label" data-lang-key="companionLabel">Companion (Last, First)</label>
+                        <div class="control">
+                            <input class="input" type="text" id="modal-companion" placeholder="Smith, Jane">
+                        </div>
+                    </div>
+                     <div class="field">
+                        <label class="label" data-lang-key="areaLabel">Area</label>
+                        <div class="control">
+                            <input class="input" type="text" id="modal-area" required>
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label class="label" data-lang-key="districtLabel">District</label>
+                        <div class="control">
+                            <input class="input" type="text" id="modal-district">
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label class="label" data-lang-key="zoneLabel">Zone</label>
+                        <div class="control">
+                            <input class="input" type="text" id="modal-zone" required>
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label class="label" data-lang-key="phoneLabel">Phone Number</label>
+                        <div class="control">
+                            <input class="input" type="text" id="modal-phone" required>
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label class="label" data-lang-key="addressLabel">Address</label>
+                        <div class="control">
+                            <input class="input" type="text" id="modal-address">
+                        </div>
+                    </div>
+                     <div class="field">
+                        <label class="label" data-lang-key="positionLabel">Position (e.g., AP, ZL1)</label>
+                        <div class="control">
+                            <input class="input" type="text" id="modal-position">
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label class="label" data-lang-key="typeLabel">Type</label>
+                        <div class="control">
+                            <div class="select is-fullwidth">
+                                <select id="modal-type">
+                                    <option value="Elder" data-lang-key="elder">Elder</option>
+                                    <option value="Sister" data-lang-key="sister">Sister</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </section>
+            <footer class="modal-card-foot">
+                <button id="save-missionary-btn" class="button is-success" data-lang-key="save">Save</button>
+                <button class="button" id="cancel-missionary-modal-btn" data-lang-key="cancel">Cancel</button>
+            </footer>
+        </div>
+    </div>
+
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // --- Translations and Language Setup ---
+    const translations = {
+        en: {
+            title: 'Missionary Contact Manager',
+            subtitle: 'Upload, manage, and export missionary contacts.',
+            languageLabel: 'Language',
+            uploadHeader: '1. Start with a New Roster',
+            uploadHelp: 'Select the Excel or CSV file containing the missionary roster.',
+            restoreHeader: 'Restore From Backup',
+            restoreHelp: 'Load a previously saved backup file to continue your work.',
+            addNew: 'Add New Missionary',
+            columns: 'Columns',
+            exportCsv: 'Export CSV',
+            exportChanged: 'Export Changed',
+            exportVcard: 'Export vCard',
+            backup: 'Backup (JSON)',
+            restore: 'Restore a .json Backup File',
+            mapColumnsTitle: '2. Map Your Columns',
+            mapColumnsHelp: 'Please match the columns from your file to the required fields.',
+            processData: 'Process Data',
+            cancel: 'Cancel',
+            addMissionaryTitle: 'Add New Missionary',
+            editMissionaryTitle: 'Edit Missionary',
+            nameLabel: 'Name (Last, First)',
+            companionLabel: 'Companion (Last, First)',
+            areaLabel: 'Area',
+            districtLabel: 'District',
+            zoneLabel: 'Zone',
+            phoneLabel: 'Phone Number',
+            addressLabel: 'Address',
+            positionLabel: 'Position (e.g., AP, ZL1)',
+            typeLabel: 'Type',
+            elder: 'Elder',
+            sister: 'Sister',
+            save: 'Save',
+            other: 'Other...',
+            select: '-- Select --',
+            unassigned: 'Unassigned',
+            confirmDelete: 'Are you sure you want to delete this row?',
+            enterNewPhone: 'Enter the new phone number:',
+            dataRestored: 'Data restored successfully!',
+            invalidBackup: 'Invalid backup file format.',
+            parseError: 'Could not parse the backup file. Please ensure it is a valid JSON file.',
+            noDataBackup: 'No data to back up.',
+            noChangesFound: 'No changes in phone numbers found compared to the initial upload.',
+            colVerified: 'Verified',
+            colName: 'Name',
+            colCompanion: 'Companion',
+            colArea: 'Area',
+            colDistrict: 'District',
+            colZone: 'Zone',
+            colPhone: 'Phone',
+            colAddress: 'Address',
+            colPosition: 'Position',
+            colType: 'Type',
+            colActions: 'Actions',
+            csvFirstName: 'First Name',
+            csvMiddleName: 'Middle Name',
+            csvLastName: 'Last Name',
+            csvPhoneNumber: 'Phone Number',
+            copySuccess: 'Copied!'
+        },
+        pt: {
+            title: 'Gerenciador de Contatos de Missionários',
+            subtitle: 'Carregue, gerencie e exporte contatos de missionários.',
+            languageLabel: 'Idioma',
+            uploadHeader: '1. Comece com uma Nova Lista',
+            uploadHelp: 'Selecione o arquivo Excel ou CSV contendo a lista de missionários.',
+            restoreHeader: 'Restaurar de Backup',
+            restoreHelp: 'Carregue um arquivo de backup salvo anteriormente para continuar seu trabalho.',
+            addNew: 'Adicionar Novo Missionário',
+            columns: 'Colunas',
+            exportCsv: 'Exportar CSV',
+            exportChanged: 'Exportar Alterados',
+            exportVcard: 'Exportar vCard',
+            backup: 'Backup (JSON)',
+            restore: 'Restaurar um Arquivo de Backup .json',
+            mapColumnsTitle: '2. Mapeie Suas Colunas',
+            mapColumnsHelp: 'Por favor, associe as colunas do seu arquivo aos campos necessários.',
+            processData: 'Processar Dados',
+            cancel: 'Cancelar',
+            addMissionaryTitle: 'Adicionar Novo Missionário',
+            editMissionaryTitle: 'Editar Missionário',
+            nameLabel: 'Nome (Sobrenome, Nome)',
+            companionLabel: 'Companheiro (Sobrenome, Nome)',
+            areaLabel: 'Área',
+            districtLabel: 'Distrito',
+            zoneLabel: 'Zona',
+            phoneLabel: 'Número de Telefone',
+            addressLabel: 'Endereço',
+            positionLabel: 'Posição (ex: AP, ZL1)',
+            typeLabel: 'Tipo',
+            elder: 'Elder',
+            sister: 'Sister',
+            save: 'Salvar',
+            other: 'Outro...',
+            select: '-- Selecione --',
+            unassigned: 'Não atribuído',
+            confirmDelete: 'Tem certeza de que deseja excluir esta linha?',
+            enterNewPhone: 'Digite o novo número de telefone:',
+            dataRestored: 'Dados restaurados com sucesso!',
+            invalidBackup: 'Formato de arquivo de backup inválido.',
+            parseError: 'Não foi possível analisar o arquivo de backup. Verifique se é um arquivo JSON válido.',
+            noDataBackup: 'Nenhum dado para fazer backup.',
+            noChangesFound: 'Nenhuma alteração nos números de telefone encontrada em comparação com o upload inicial.',
+            colVerified: 'Verificado',
+            colName: 'Nome',
+            colCompanion: 'Companheiro',
+            colArea: 'Área',
+            colDistrict: 'Distrito',
+            colZone: 'Zona',
+            colPhone: 'Telefone',
+            colAddress: 'Endereço',
+            colPosition: 'Posição',
+            colType: 'Tipo',
+            colActions: 'Ações',
+            csvFirstName: 'Primeiro Nome',
+            csvMiddleName: 'Nome do Meio',
+            csvLastName: 'Sobrenome',
+            csvPhoneNumber: 'Número de Telefone',
+            copySuccess: 'Copiado!'
+        }
+    };
+
+    const languageSelector = document.getElementById('language-selector');
+    let currentLang = 'en';
+
+    function setLanguage(lang) {
+        currentLang = lang;
+        localStorage.setItem('missionaryLang', lang);
+        languageSelector.value = lang;
+        document.querySelectorAll('[data-lang-key]').forEach(el => {
+            const key = el.dataset.langKey;
+            if (translations[lang][key]) {
+                el.textContent = translations[lang][key];
+            }
+        });
+        if (missionaryData.length > 0) {
+            render();
+        }
+    }
+
+    languageSelector.addEventListener('change', (e) => setLanguage(e.target.value));
+
+    // --- Core Application Logic ---
+    const fileUpload = document.getElementById('file-upload');
+    const mappingModal = document.getElementById('mapping-modal');
+    const mappingForm = document.getElementById('mapping-form');
+    const processDataBtn = document.getElementById('process-data-btn');
+    const cancelMappingBtn = document.getElementById('cancel-mapping-btn');
+    const mainContent = document.getElementById('main-content');
+    const tableHead = document.getElementById('table-head');
+    const tableBody = document.getElementById('table-body');
+    const columnToggleContainer = document.getElementById('column-toggle-container');
+    const addMissionaryBtn = document.getElementById('add-missionary-btn');
+    const missionaryModal = document.getElementById('missionary-modal');
+    const saveMissionaryBtn = document.getElementById('save-missionary-btn');
+    const cancelMissionaryModalBtn = document.getElementById('cancel-missionary-modal-btn');
+    const missionaryModalCloseBtn = missionaryModal.querySelector('.delete');
+    const exportCsvBtn = document.getElementById('export-csv-btn');
+    const exportChangedBtn = document.getElementById('export-changed-btn');
+    const exportVcardBtn = document.getElementById('export-vcard-btn');
+    const backupBtn = document.getElementById('backup-btn');
+    const restoreBackupInput = document.getElementById('restore-backup-input');
+
+    let rawData = [];
+    let headers = [];
+    let missionaryData = [];
+    let initialUploadData = [];
+    
+    const LEADERSHIP_POSITIONS = ["AP", "SA", "ZL1", "ZL2", "STL1", "STL2", "STLT"];
+
+    let columnConfig = [
+        { key: 'verified', titleKey: 'colVerified', visible: true, editable: false },
+        { key: 'name', titleKey: 'colName', visible: true, editable: false }, // Not directly editable for companionships
+        { key: 'area', titleKey: 'colArea', visible: true, editable: true },
+        { key: 'district', titleKey: 'colDistrict', visible: true, editable: true },
+        { key: 'zone', titleKey: 'colZone', visible: true, editable: true },
+        { key: 'phone', titleKey: 'colPhone', visible: true, editable: false },
+        { key: 'address', titleKey: 'colAddress', visible: true, editable: true },
+        { key: 'position', titleKey: 'colPosition', visible: true, editable: false },
+        { key: 'type', titleKey: 'colType', visible: true, editable: false },
+        { key: 'actions', titleKey: 'colActions', visible: true, editable: false },
+    ];
+
+    const requiredFields = { name: "Name", companion: "Companion", district: "District", zone: "Zone", area: "Area", phone: "Phone Number", address: "Address", position: "Position", type: "Type" };
+
+    function loadFromLocalStorage() {
+        const savedLang = localStorage.getItem('missionaryLang') || 'en';
+        setLanguage(savedLang);
+
+        const savedData = localStorage.getItem('missionaryContactData');
+        const savedColumns = localStorage.getItem('missionaryColumnConfig');
+        const savedInitialData = localStorage.getItem('missionaryInitialData');
+
+        if (savedData) {
+            missionaryData = JSON.parse(savedData);
+            if (savedColumns) columnConfig = JSON.parse(savedColumns);
+            if (savedInitialData) initialUploadData = JSON.parse(savedInitialData);
+            mainContent.style.display = 'block';
+            render();
+        }
+    }
+
+    function saveToLocalStorage() {
+        localStorage.setItem('missionaryContactData', JSON.stringify(missionaryData));
+        localStorage.setItem('missionaryColumnConfig', JSON.stringify(columnConfig));
+        localStorage.setItem('missionaryInitialData', JSON.stringify(initialUploadData));
+    }
+
+    fileUpload.addEventListener('change', (e) => {
+        const file = e.target.files[0]; if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const data = new Uint8Array(event.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+            if (rawData.length < 1) return;
+            headers = rawData[0].map(h => String(h));
+            rawData.shift();
+            setupMappingModal();
+        };
+        reader.readAsArrayBuffer(file);
+    });
+
+    function setupMappingModal() {
+        mappingForm.innerHTML = '';
+        const headerOptions = headers.map(h => `<option value="${h}">${h}</option>`).join('');
+        for (const [key, label] of Object.entries(requiredFields)) {
+            const field = document.createElement('div');
+            field.className = 'field is-horizontal';
+            const translatedLabel = translations[currentLang][`${key}Label`] || label;
+            field.innerHTML = `<div class="field-label is-normal"><label class="label">${translatedLabel}</label></div><div class="field-body"><div class="field"><div class="control"><div class="select is-fullwidth"><select data-key="${key}"><option value="">-- ${translations[currentLang].select} --</option>${headerOptions}</select></div></div></div></div>`;
+            mappingForm.appendChild(field);
+            const select = field.querySelector('select');
+            const matchingHeader = headers.find(h => h.toLowerCase().includes(label.toLowerCase().split(' ')[0]));
+            if(matchingHeader) select.value = matchingHeader;
+        }
+        mappingModal.classList.add('is-active');
+    }
+
+    processDataBtn.addEventListener('click', () => {
+        const mapping = {};
+        mappingForm.querySelectorAll('select').forEach(sel => { mapping[sel.dataset.key] = sel.value; });
+        
+        const processedData = rawData.map((row, index) => {
+            const data = {};
+            for (const key in requiredFields) {
+                const header = mapping[key];
+                const colIndex = headers.indexOf(header);
+                data[key] = colIndex !== -1 ? (row[colIndex] || '') : '';
+            }
+            data.id = Date.now() + index;
+            return normalizeData(data);
+        });
+
+        missionaryData = JSON.parse(JSON.stringify(processedData));
+        initialUploadData = JSON.parse(JSON.stringify(processedData));
+        
+        saveToLocalStorage();
+        render();
+        mainContent.style.display = 'block';
+        mappingModal.classList.remove('is-active');
+    });
+
+    cancelMappingBtn.addEventListener('click', () => {
+        mappingModal.classList.remove('is-active');
+        fileUpload.value = '';
+    });
+
+    function normalizeData(data) {
+        const [lastName, firstName] = (String(data.name) || ',').split(',').map(s => s.trim());
+        data.firstName = firstName || ''; data.lastName = lastName || '';
+        const [compLastName, compFirstName] = (String(data.companion) || ',').split(',').map(s => s.trim());
+        data.compFirstName = compFirstName || ''; data.compLastName = compLastName || '';
+        data.zone = (String(data.zone) || '').replace(/ZONA/gi, '').trim();
+        const positionMatch = (String(data.position) || '').match(/\((.*?)\)/);
+        data.position = positionMatch ? positionMatch[1].trim().toUpperCase() : (String(data.position) || '').toUpperCase();
+        const phoneStr = String(data.phone || '').trim();
+        const cleanedNumbers = (phoneStr.match(/\+?[0-9\s]+/g) || []).map(n => n.replace(/\D/g, '')).filter(n => n.length > 5).map(n => '+258' + n.slice(-9));
+        data.phoneNumbers = [...new Set(cleanedNumbers)];
+        data.selectedPhone = data.selectedPhone || data.phoneNumbers[0] || '';
+        const typeStr = String(data.type || '').toLowerCase();
+        if (typeStr.includes('sister')) data.type = 'Sister';
+        else if (typeStr.includes('elder')) data.type = 'Elder';
+        else data.type = 'Unknown';
+        data.isSplit = data.isSplit || false;
+        data.verified = data.verified || false;
+        return data;
+    }
+
+    function getDisplayData() {
+        const displayData = [];
+        const processedIds = new Set();
+
+        missionaryData.forEach(m1 => {
+            if (processedIds.has(m1.id)) return;
+
+            const m1IsLeadership = LEADERSHIP_POSITIONS.includes(m1.position);
+
+            if (m1IsLeadership || m1.isSplit) {
+                displayData.push({ type: 'single', missionary: m1 });
+                processedIds.add(m1.id);
+                return;
+            }
+
+            const companion = missionaryData.find(m2 => m2.name === m1.companion && !processedIds.has(m2.id));
+            
+            if (companion) {
+                const companionIsLeadership = LEADERSHIP_POSITIONS.includes(companion.position);
+                const samePhone = m1.selectedPhone === companion.selectedPhone;
+
+                if (!companionIsLeadership && samePhone && !companion.isSplit) {
+                    displayData.push({ type: 'companionship', m1: m1, m2: companion });
+                    processedIds.add(m1.id);
+                    processedIds.add(companion.id);
+                } else {
+                    displayData.push({ type: 'single', missionary: m1 });
+                    processedIds.add(m1.id);
+                }
+            } else {
+                displayData.push({ type: 'single', missionary: m1 });
+                processedIds.add(m1.id);
+            }
+        });
+        return displayData;
+    }
+    
+    function render() {
+        renderTableHead();
+        renderTableBody();
+        renderColumnToggles();
+        lucide.createIcons();
+    }
+    
+    function renderTableHead() {
+        tableHead.innerHTML = '';
+        const tr = document.createElement('tr');
+        columnConfig.filter(c => c.visible).forEach(col => {
+            const th = document.createElement('th');
+            th.textContent = translations[currentLang][col.titleKey] || col.titleKey;
+            th.dataset.key = col.key;
+            tr.appendChild(th);
+        });
+        tableHead.appendChild(tr);
+        new Sortable(tr, { animation: 150, ghostClass: 'is-placeholder', onEnd: (evt) => {
+            const movedItem = columnConfig.splice(evt.oldIndex, 1)[0];
+            columnConfig.splice(evt.newIndex, 0, movedItem);
+            saveToLocalStorage();
+            render();
+        }});
+    }
+
+    function renderTableBody() {
+        tableBody.innerHTML = '';
+        const displayData = getDisplayData();
+
+        const groupedByZone = displayData.reduce((acc, item) => {
+            const zone = (item.missionary || item.m1).zone || translations[currentLang].unassigned;
+            if (!acc[zone]) acc[zone] = [];
+            acc[zone].push(item);
+            return acc;
+        }, {});
+        const sortedZones = Object.keys(groupedByZone).sort((a, b) => a.localeCompare(b));
+        sortedZones.forEach(zone => {
+            const headerRow = document.createElement('tr');
+            headerRow.className = 'zone-header';
+            const headerCell = document.createElement('th');
+            headerCell.colSpan = columnConfig.filter(c => c.visible).length;
+            headerCell.textContent = zone;
+            tableBody.appendChild(headerRow); 
+
+            groupedByZone[zone].forEach(item => {
+                const tr = document.createElement('tr');
+                const primaryMissionary = item.missionary || item.m1;
+                tr.dataset.id = primaryMissionary.id; 
+                tr.dataset.type = item.type;
+                if(item.type === 'companionship') {
+                    tr.dataset.m2Id = item.m2.id;
+                }
+
+                columnConfig.filter(c => c.visible).forEach(col => {
+                    const td = document.createElement('td');
+                    td.dataset.key = col.key;
+                    if (col.editable) td.contentEditable = true;
+                    
+                    let content = '';
+                    if (item.type === 'single') {
+                        content = primaryMissionary[col.key] || '';
+                    } else { // companionship
+                        if (col.key === 'name') {
+                            content = `${item.m1.name} & ${item.m2.name}`;
+                        } else if (col.key === 'position') {
+                            content = [item.m1.position, item.m2.position].filter(Boolean).join(', ');
+                        }
+                         else {
+                            content = primaryMissionary[col.key] || '';
+                        }
+                    }
+
+                    switch (col.key) {
+                        case 'verified': td.innerHTML = `<label class="checkbox" style="display: flex; justify-content: center;"><input type="checkbox" data-id="${primaryMissionary.id}" class="verified-checkbox" ${primaryMissionary.verified ? 'checked' : ''}></label>`; break;
+                        case 'phone': td.innerHTML = createPhoneDropdownHTML(primaryMissionary); break;
+                        case 'type': td.innerHTML = createTypeDropdownHTML(primaryMissionary); break;
+                        case 'actions': td.innerHTML = createActionButtonsHTML(item); break;
+                        default: td.textContent = content;
+                    }
+                    tr.appendChild(td);
+                });
+                tableBody.appendChild(tr);
+            });
+        });
+    }
+
+    function renderColumnToggles() {
+        columnToggleContainer.innerHTML = '';
+        columnConfig.forEach(col => {
+            const label = document.createElement('label');
+            label.className = 'dropdown-item checkbox';
+            label.innerHTML = `<input type="checkbox" data-key="${col.key}" ${col.visible ? 'checked' : ''}> ${translations[currentLang][col.titleKey] || col.titleKey}`;
+            columnToggleContainer.appendChild(label);
+        });
+        columnToggleContainer.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+            checkbox.addEventListener('change', (e) => {
+                const col = columnConfig.find(c => c.key === e.target.dataset.key);
+                col.visible = e.target.checked;
+                saveToLocalStorage();
+                render();
+            });
+        });
+    }
+    
+    function createPhoneDropdownHTML(missionary) {
+        let inputHtml = '';
+        if (missionary.phoneNumbers.length <= 1) {
+            inputHtml = `<input type="text" class="input is-small phone-input" data-id="${missionary.id}" value="${missionary.selectedPhone}">`;
+        } else {
+            let options = missionary.phoneNumbers.map(n => `<option value="${n}" ${n === missionary.selectedPhone ? 'selected' : ''}>${n}</option>`).join('');
+            options += `<option value="other">${translations[currentLang].other}</option>`;
+            inputHtml = `<div class="select is-small is-fullwidth"><select class="phone-select" data-id="${missionary.id}">${options}</select></div>`;
+        }
+
+        // Return a field group with a copy button next to the input/select
+        return `
+            <div class="field has-addons mb-0">
+                <div class="control is-expanded">
+                    ${inputHtml}
+                </div>
+                <div class="control">
+                    <button class="button is-small copy-phone-btn" title="Copy without +258">
+                        <span class="icon is-small"><i data-lucide="copy"></i></span>
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    function createTypeDropdownHTML(missionary) {
+        if (missionary.type !== 'Unknown') return translations[currentLang][missionary.type.toLowerCase()];
+        return `<div class="select is-small is-fullwidth is-danger"><select class="type-select" data-id="${missionary.id}"><option>-- ${translations[currentLang].select} --</option><option value="Elder">${translations[currentLang].elder}</option><option value="Sister">${translations[currentLang].sister}</option></select></div>`;
+    }
+    
+    function createActionButtonsHTML(item) {
+        const primaryMissionary = item.missionary || item.m1;
+        const safePhone = (primaryMissionary.selectedPhone || '').replace(/\D/g, '');
+        const splitButton = item.type === 'companionship' ? `<button class="button is-small is-warning split-btn" title="Split Companionship"><span class="icon"><i data-lucide="users"></i></span></button>` : '';
+        return `<div class="buttons is-flex is-flex-wrap-nowrap action-buttons"><button class="button is-small is-success whatsapp-btn" ${!safePhone ? 'disabled' : ''} title="Open WhatsApp"><span class="icon"><i data-lucide="message-circle"></i></span></button>${splitButton}<button class="button is-small is-info edit-btn" title="Edit Row"><span class="icon"><i data-lucide="pencil"></i></span></button><button class="button is-small is-danger delete-btn" title="Delete Row"><span class="icon"><i data-lucide="trash-2"></i></span></button></div>`;
+    }
+
+    tableBody.addEventListener('change', e => {
+        const target = e.target; const id = parseInt(target.dataset.id, 10); if (!id) return;
+        const missionary = missionaryData.find(m => m.id === id); if(!missionary) return;
+        if (target.classList.contains('verified-checkbox')) missionary.verified = target.checked;
+        else if (target.classList.contains('phone-select')) {
+            if (target.value === 'other') {
+                const newPhone = prompt(translations[currentLang].enterNewPhone);
+                if (newPhone) {
+                    const normalized = '+258' + newPhone.replace(/\D/g, '').slice(-9);
+                    if (!missionary.phoneNumbers.includes(normalized)) missionary.phoneNumbers.push(normalized);
+                    missionary.selectedPhone = normalized;
+                }
+                render();
+            } else missionary.selectedPhone = target.value;
+        } else if (target.classList.contains('type-select')) { missionary.type = target.value; render(); }
+        saveToLocalStorage();
+    });
+
+    tableBody.addEventListener('blur', e => {
+        const target = e.target; if (!target.hasAttribute('contenteditable')) return;
+        const row = target.closest('tr');
+        const id = parseInt(row.dataset.id, 10); if (!id) return;
+        const missionary = missionaryData.find(m => m.id === id); if(!missionary) return;
+        
+        const key = target.closest('td').dataset.key; const newValue = target.textContent.trim();
+        if (missionary[key] !== newValue) {
+            missionary[key] = newValue;
+            saveToLocalStorage();
+        }
+    }, true);
+
+    tableBody.addEventListener('click', e => {
+        const button = e.target.closest('button'); if(!button) return;
+        const row = button.closest('tr');
+        const m1Id = parseInt(row.dataset.id, 10);
+        const m2Id = parseInt(row.dataset.m2Id, 10);
+        const type = row.dataset.type;
+
+        const missionary = missionaryData.find(m => m.id === m1Id);
+
+        if (button.classList.contains('whatsapp-btn')) { 
+            if (missionary) { 
+                const phone = missionary.selectedPhone.replace(/\D/g, ''); 
+                if (phone) window.open(`https://wa.me/${phone}`, '_blank'); 
+            } 
+        }
+        else if (button.classList.contains('delete-btn')) { 
+            if (confirm(translations[currentLang].confirmDelete)) { 
+                const idsToDelete = [m1Id];
+                if(type === 'companionship' && m2Id) idsToDelete.push(m2Id);
+                missionaryData = missionaryData.filter(m => !idsToDelete.includes(m.id)); 
+                saveToLocalStorage(); 
+                render(); 
+            } 
+        }
+        else if (button.classList.contains('split-btn')) {
+            if (type === 'companionship') {
+                const m1 = missionaryData.find(m => m.id === m1Id);
+                const m2 = missionaryData.find(m => m.id === m2Id);
+                if (m1) m1.isSplit = true;
+                if (m2) m2.isSplit = true;
+                saveToLocalStorage();
+                render();
+            }
+        }
+        else if (button.classList.contains('edit-btn')) {
+            openMissionaryModal(m1Id);
+        }
+        else if (button.classList.contains('copy-phone-btn')) {
+            if(missionary && missionary.selectedPhone) {
+                // Remove +258 (and any surrounding whitespace)
+                const phoneToCopy = missionary.selectedPhone.replace('+258', '').trim();
+                
+                navigator.clipboard.writeText(phoneToCopy).then(() => {
+                    // Visual Feedback
+                    const icon = button.querySelector('i');
+                    if(icon) {
+                        const originalIcon = icon.getAttribute('data-lucide');
+                        icon.setAttribute('data-lucide', 'check');
+                        lucide.createIcons();
+                        
+                        setTimeout(() => {
+                            icon.setAttribute('data-lucide', 'copy');
+                            lucide.createIcons();
+                        }, 1500);
+                    }
+                }).catch(err => {
+                    console.error('Failed to copy text: ', err);
+                });
+            }
+        }
+    });
+
+    addMissionaryBtn.addEventListener('click', () => openMissionaryModal());
+
+    function openMissionaryModal(id = null) {
+        const titleEl = document.getElementById('missionary-modal-title');
+        document.getElementById('missionary-form').reset();
+        document.getElementById('missionary-id').value = id || '';
+        if (id !== null) {
+            const m = missionaryData.find(m => m.id === id); if (!m) return;
+            titleEl.textContent = translations[currentLang].editMissionaryTitle;
+            document.getElementById('modal-name').value = m.name || ''; document.getElementById('modal-companion').value = m.companion || '';
+            document.getElementById('modal-area').value = m.area || ''; document.getElementById('modal-district').value = m.district || '';
+            document.getElementById('modal-zone').value = m.zone || ''; document.getElementById('modal-phone').value = m.selectedPhone || '';
+            document.getElementById('modal-address').value = m.address || ''; document.getElementById('modal-position').value = m.position || '';
+            document.getElementById('modal-type').value = m.type || 'Elder';
+        } else { titleEl.textContent = translations[currentLang].addMissionaryTitle; }
+        missionaryModal.classList.add('is-active');
+    }
+
+    saveMissionaryBtn.addEventListener('click', () => {
+        const id = parseInt(document.getElementById('missionary-id').value, 10);
+        const newData = { id: id || Date.now(), name: document.getElementById('modal-name').value, companion: document.getElementById('modal-companion').value, area: document.getElementById('modal-area').value, district: document.getElementById('modal-district').value, zone: document.getElementById('modal-zone').value, phone: document.getElementById('modal-phone').value, address: document.getElementById('modal-address').value, position: document.getElementById('modal-position').value, type: document.getElementById('modal-type').value };
+        const normalized = normalizeData(newData);
+        if (id) { const index = missionaryData.findIndex(m => m.id === id); if (index > -1) missionaryData[index] = { ...missionaryData[index], ...normalized }; }
+        else missionaryData.push(normalized);
+        saveToLocalStorage(); render(); missionaryModal.classList.remove('is-active');
+    });
+
+    const closeMissionaryModal = () => missionaryModal.classList.remove('is-active');
+    cancelMissionaryModalBtn.addEventListener('click', closeMissionaryModal);
+    missionaryModalCloseBtn.addEventListener('click', closeMissionaryModal);
+    
+    function getExportContacts(data = missionaryData) {
+        const contacts = [];
+        const groupedByPhone = data.reduce((acc, m) => {
+            const phone = m.selectedPhone; if (!phone) return acc;
+            if (!acc[phone]) acc[phone] = []; acc[phone].push(m); return acc;
+        }, {});
+        for (const phone in groupedByPhone) {
+            const missionaries = groupedByPhone[phone];
+            const isLeadership = missionaries.some(m => LEADERSHIP_POSITIONS.includes(m.position));
+            if (missionaries.length === 2 && !isLeadership && !missionaries.some(m => m.isSplit)) {
+                const [m1, m2] = missionaries;
+                const typePrefix1 = m1.type === 'Sister' ? 'S.' : 'E.'; const typePrefix2 = m2.type === 'Sister' ? 'S.' : 'E.';
+                let name1 = `${typePrefix1} ${m1.lastName}`; let name2 = m2.lastName;
+                if (m1.lastName === m2.lastName) { name1 = `${typePrefix1} ${m1.firstName.charAt(0)}. ${m1.lastName}`; name2 = `${m2.firstName.charAt(0)}. ${m2.lastName}`; }
+                contacts.push({ firstName: `${name1} e ${name2}`, middleName: '|', lastName: `${m1.area} [${m1.zone}]`, phone: m1.selectedPhone });
+            } else {
+                missionaries.forEach(m => {
+                    const typePrefix = m.type === 'Sister' ? 'S.' : 'E.';
+                    contacts.push({ firstName: `${typePrefix} ${m.lastName}`, middleName: '|', lastName: `${m.area} [${m.zone}]${m.position ? ` (${m.position})` : ''}`, phone: m.selectedPhone });
+                });
+            }
+        }
+        return contacts;
+    }
+
+    function generateCsv(data, filename) {
+        // 1. Add the BOM (Byte Order Mark) to fix Portuguese characters in Excel
+        const BOM = "\uFEFF"; 
+        let csvContent = "";
+
+        const headers = [
+            `"${translations[currentLang].csvFirstName}"`, 
+            `"${translations[currentLang].csvMiddleName}"`,
+            `"${translations[currentLang].csvLastName}"`, 
+            `"${translations[currentLang].csvPhoneNumber}"`
+        ].join(';');
+        csvContent += headers + "\r\n";
+
+        data.forEach(c => {
+            // 2. Fix Scientific Notation
+            // We ensure the phone has a '+' sign, and we prepend a Tab character (\t)
+            // This forces Excel to treat the cell as text, not a number.
+            let phoneStr = c.phone.startsWith('+') ? c.phone : `+${c.phone}`;
+            
+            // If there is no phone number, keep it empty, otherwise add the tab
+            if(c.phone && c.phone.trim() !== '') {
+                phoneStr = `\t${phoneStr}`; 
+            }
+
+            const row = [
+                `"${c.firstName}"`, 
+                `"${c.middleName}"`, 
+                `"${c.lastName}"`, 
+                `"${phoneStr}"`
+            ].join(';');
+            csvContent += row + "\r\n";
+        });
+
+        // 3. Use a Blob object for better encoding handling
+        const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", filename);
+        document.body.appendChild(link); 
+        link.click(); 
+        document.body.removeChild(link);
+    }
+
+    exportCsvBtn.addEventListener('click', () => {
+        const contacts = getExportContacts(missionaryData);
+        generateCsv(contacts, "missionary_contacts.csv");
+    });
+
+    exportChangedBtn.addEventListener('click', () => {
+        if (initialUploadData.length === 0) {
+            alert('Please upload a file first to track changes.');
+            return;
+        }
+
+        const initialAreaPhones = initialUploadData.reduce((acc, m) => {
+            if (m.area) {
+                if (!acc[m.area]) acc[m.area] = new Set();
+                m.phoneNumbers.forEach(p => acc[m.area].add(p));
+            }
+            return acc;
+        }, {});
+
+        const changedAreas = new Set();
+        missionaryData.forEach(m => {
+            if (m.area && initialAreaPhones[m.area]) {
+                if (!initialAreaPhones[m.area].has(m.selectedPhone)) {
+                    changedAreas.add(m.area);
+                }
+            } else if (m.area && m.selectedPhone) {
+                changedAreas.add(m.area);
+            }
+        });
+
+        if (changedAreas.size === 0) {
+            alert(translations[currentLang].noChangesFound);
+            return;
+        }
+
+        const changedMissionaries = missionaryData.filter(m => changedAreas.has(m.area));
+        const contactsToExport = getExportContacts(changedMissionaries);
+        generateCsv(contactsToExport, 'changed_missionary_numbers.csv');
+    });
+
+    exportVcardBtn.addEventListener('click', () => {
+        const contacts = getExportContacts();
+        let vcardContent = "";
+        contacts.forEach(c => {
+            vcardContent += "BEGIN:VCARD\r\nVERSION:3.0\r\n";
+            vcardContent += `N:${c.lastName};${c.firstName};${c.middleName};;\r\nFN:${c.firstName} ${c.middleName} ${c.lastName}\r\n`;
+            if (c.phone) vcardContent += `TEL;TYPE=CELL:${c.phone}\r\n`;
+            vcardContent += "END:VCARD\r\n";
+        });
+        const blob = new Blob([vcardContent], { type: 'text/vcard;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url; link.setAttribute('download', 'missionary_contacts.vcf');
+        document.body.appendChild(link); link.click(); document.body.removeChild(link);
+    });
+
+    backupBtn.addEventListener('click', () => {
+        if(missionaryData.length === 0) { alert(translations[currentLang].noDataBackup); return; }
+        const dataToSave = {
+            missionaryData: missionaryData,
+            initialUploadData: initialUploadData
+        };
+        const jsonData = JSON.stringify(dataToSave, null, 2);
+        const blob = new Blob([jsonData], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url; link.download = `missionary_backup_${new Date().toISOString().slice(0,10)}.json`;
+        document.body.appendChild(link); link.click(); document.body.removeChild(link);
+    });
+    
+    restoreBackupInput.addEventListener('change', (e) => {
+        const file = e.target.files[0]; if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const restored = JSON.parse(event.target.result);
+                if (Array.isArray(restored.missionaryData)) {
+                    missionaryData = restored.missionaryData;
+                    initialUploadData = restored.initialUploadData || [];
+                    saveToLocalStorage();
+                    mainContent.style.display = 'block';
+                    render();
+                    alert(translations[currentLang].dataRestored);
+                } else alert(translations[currentLang].invalidBackup);
+            } catch (error) { alert(translations[currentLang].parseError); console.error('Restore error:', error); }
+        };
+        reader.readAsText(file); e.target.value = ''; 
+    });
+
+    loadFromLocalStorage();
+});
+</script>
+
+</body>
+</html>
