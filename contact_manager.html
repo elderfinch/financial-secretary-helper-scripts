@@ -750,7 +750,7 @@ document.addEventListener('DOMContentLoaded', () => {
             headerCell.colSpan = columnConfig.filter(c => c.visible).length;
             headerCell.textContent = zone;
             tableBody.appendChild(headerRow); 
-
+            
             groupedByZone[zone].sort((a,b) => a.name.localeCompare(b.name));
 
             groupedByZone[zone].forEach(item => {
