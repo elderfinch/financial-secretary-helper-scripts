@@ -151,3 +151,21 @@ Next, open your Google Sheet with the M-PESA form responses:
 * Once everything is matched, you can paste in the fees and M-PESA codes.
 
 </details>
+
+<details>
+<summary>
+IMOS POP Request Generator
+</summary>
+
+### IMOS POP Request Generator
+
+This Tampermonkey script streamlines the creation of Proof of Payment (POP) requests within the IMOS Vendor Management portal. It eliminates manual data entry by scraping vendor details and payment history rows to generate formatted text instantly.
+
+**Key Features:**
+* **Floating Action Button:** Adds a floating flamingo button (`🦩`) to the UI to initialize the script on dynamic tables.
+* **Dual Copy Modes:** Injects two buttons into every payment row:
+    * **POP Email:** Copies a complete email template addressed to `AFSProofofPayment`, including the subject line, vendor name, and full payment details.
+    * **POP Details:** Copies only the raw payment data (Reference #, Dates, and Amount) for quick pasting into existing threads or documents.
+* **Smart Scraping:** Automatically detects the current Vendor Name from the breadcrumbs and the specific transaction details from the selected row.
+
+</details>
