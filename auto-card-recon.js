@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Auto Card Recon
 // @namespace    http://tampermonkey.net/
-// @version      2.5
-// @description  Uploads card recon receipts, descriptions, and auto-fills Accounting from PDF metadata. Fixed upload stalling issues.
+// @version      3.0
+// @description  Uploads card recon receipts, sets descriptions, and uses Mass Allocate for Accounting.
 // @author       Gemini & Elder Benjamin Finch
 // @match        https://card.churchofjesuschrist.org/psc/card/*
 // @grant        GM_addStyle
@@ -19,27 +19,26 @@
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     }
 
-    const log = (msg) => console.log(`[Recon v2.3] ${msg}`);
+    const log = (msg) => console.log(`[Recon v3.0] ${msg}`);
     const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
     const waitForElement = (selector, context = document, timeout = 30000) => {
         return new Promise((resolve, reject) => {
-            log(`Waiting for: "${selector}"`); // Added logging
+            log(`Waiting for: "${selector}"`);
             const intervalTime = 100;
             let elapsedTime = 0;
             const interval = setInterval(() => {
                 const element = context.querySelector(selector);
-                if (element) { // This is the simple check from v2.1
-                    log(`Found: "${selector}"`);
+                if (element) {
+                    // log(`Found: "${selector}"`); // Reduce noise
                     clearInterval(interval);
                     resolve(element);
                 } else {
                     elapsedTime += intervalTime;
                     if (elapsedTime >= timeout) {
                         clearInterval(interval);
-                        const errorMsg = `Timeout waiting for: "${selector}"`;
-                        log(`FATAL ERROR: ${errorMsg}`); // Match your log style
-                        reject(new Error(errorMsg));
+                        log(`FATAL ERROR: Timeout waiting for "${selector}"`);
+                        reject(new Error(`Timeout waiting for: "${selector}"`));
                     }
                 }
             }, intervalTime);
@@ -53,13 +52,11 @@
             const frames = document.querySelectorAll('iframe[id^="ptModFrame_"]');
             if (frames.length > currentCount) {
                 const newFrame = frames[frames.length - 1];
-                // Wait for it to have content
                 try {
                     if (newFrame.contentDocument && newFrame.contentDocument.body.innerHTML.length > 50) {
-                         log(`Found new iframe: ${newFrame.id}`);
-                         return newFrame;
+                        return newFrame;
                     }
-                } catch (e) { /* ignore cross-origin momentarily */ }
+                } catch (e) { /* cross-origin wait */ }
             }
             await sleep(500);
         }
@@ -73,7 +70,6 @@
             const meta = await pdf.getMetadata();
             if (meta?.info?.Keywords) {
                 const kw = meta.info.Keywords.trim();
-                console.log(kw);
                 try { return JSON.parse(kw); } catch (e) { return kw.split(/[,; \t]+/).filter(k => k.trim()); }
             }
         } catch (e) { log(`Metadata error for ${file.name}: ${e.message}`); }
@@ -105,6 +101,7 @@
     async function handleFiles(e) {
         const btn = document.getElementById('recon-float-btn');
         btn.disabled = true; btn.textContent = 'Processing...';
+
         try {
             const files = Array.from(e.target.files);
             if (!files.length) return;
@@ -119,7 +116,8 @@
                     const val = parseFloat(valStr.replace(/,/g, ''));
                     if (!isNaN(val)) {
                         receipts.push({
-                            file, value: val,
+                            file,
+                            value: val,
                             currency: (cur || 'USD').toUpperCase(),
                             lineItem: parts[parts.length - 1].trim(),
                             keywords: await extractKeywordsFromPDF(file)
@@ -128,14 +126,21 @@
                 }
             }
 
-            if (!receipts.length) { alert("No valid filenames found (Format: 123.45 USD - Description.pdf)"); return; }
+            if (!receipts.length) { alert("No valid filenames found."); return; }
 
+            // 1. Process Uploads & Descriptions
             for (const r of receipts) {
                 await processReceipt(r);
             }
+
+            // 2. Perform Mass Allocation
+            await runMassAllocation(receipts);
+
             alert("Processing Complete!");
+
         } catch (err) {
             log("FATAL ERROR: " + err.message);
+            console.error(err);
             alert("Error: " + err.message);
         } finally {
             btn.disabled = false; btn.textContent = 'Start Recon';
@@ -145,9 +150,10 @@
 
     async function processReceipt(r) {
         log(`>>> Processing: ${r.lineItem} (${r.value})`);
+
+        // Find row by Amount on main page
         const rows = document.querySelectorAll('li.ps_grid-row');
         let row = null;
-
         for (const rCandidate of rows) {
             const amt = rCandidate.querySelector("[id^='MONETARY_AMT_DTL\\$']")?.textContent.replace(/,/g, '');
             if (amt && Math.abs(parseFloat(amt) - r.value) < 0.01) {
@@ -160,15 +166,16 @@
 
         // 1. Set Description
         row.click();
-        
-        log("Waiting for row details to load...");
-        await sleep(4500); // Using the patient 4.5s sleep
-        
+        log("Waiting for row details...");
+        await sleep(4000);
+
         const desc = await waitForElement('#DESCR\\$0');
-        desc.focus(); desc.value = r.lineItem; desc.dispatchEvent(new Event('change', { bubbles: true })); desc.blur();
-        
-        log("Waiting for description change to process...");
-        await sleep(4500); // Using the patient 4.5s sleep
+        desc.focus(); desc.value = r.lineItem;
+        desc.dispatchEvent(new Event('change', { bubbles: true }));
+        desc.blur();
+
+        log("Waiting for description change...");
+        await sleep(4000);
 
         // 2. Attach File
         let iframes = document.querySelectorAll('iframe').length;
@@ -180,12 +187,11 @@
         (await waitForElement("a[id^='C_EX_ATT_WRK_ATTACHADD']", d1)).click();
         const f2 = await findNewestIframe(iframes);
 
-        log("Waiting for file upload modal to load...");
-        await sleep(3500); 
+        log("Waiting for upload modal...");
+        await sleep(3500);
         const d2 = f2.contentDocument;
-        
-        const fileIn = await waitForElement('input[type="file"]#\\#ICOrigFileName', d2);
 
+        const fileIn = await waitForElement('input[type="file"]#\\#ICOrigFileName', d2);
         const dt = new DataTransfer(); dt.items.add(r.file);
         fileIn.files = dt.files;
         fileIn.dispatchEvent(new Event('input', { bubbles: true }));
@@ -193,17 +199,14 @@
         fileIn.blur();
         await sleep(1500);
 
-        log("Clicking upload...");
         (await waitForElement('a#\\#ICUpload', d2)).click();
 
-        // WAIT FOR UPLOAD - ROBUST METHOD
         try {
             await waitForElement('.ps_attach-completetext', d2, 45000);
-            log("Upload success text detected.");
+            log("Upload success.");
         } catch (e) {
-            log("Upload text timeout. Checking if file exists in list anyway...");
-            const fileList = d2.body.textContent;
-            if (!fileList.includes(r.file.name)) throw new Error("Upload failed - file not found in list.");
+            // Check if file exists in list
+            if (!d2.body.textContent.includes(r.file.name)) throw new Error("Upload failed.");
         }
 
         (await waitForElement('a#\\#ICOK', d2)).click();
@@ -213,50 +216,144 @@
         const attDesc = await waitForElement("input[id^='ATTACH_DESCR\\$']", d1);
         attDesc.value = r.lineItem; attDesc.dispatchEvent(new Event('change', { bubbles: true }));
         (await waitForElement("a#\\#ICSave", d1)).click();
-        await sleep(5000); // Wait for main page to settle
+        await sleep(5000);
 
-        // 3. Accounting
-        if (r.keywords?.length >= 2) {
-            log(`Doing Accounting: ${r.keywords.join(', ')}`);
-            iframes = document.querySelectorAll('iframe').length;
-            (await waitForElement("a[id*='ACCTING_DETAIL']")).click();
-            const af = await findNewestIframe(iframes);
-            const ad = af.contentDocument;
+        // Removed Individual Accounting Logic from here
+        log(`<<< Done with upload: ${r.lineItem}`);
+    }
 
-            // --- START FIX ---
-            const setVal = async (sel, val) => {
-                const el = await waitForElement(sel, ad);
-                el.focus(); 
-                el.value = val;
-                el.dispatchEvent(new Event('change', { bubbles: true }));
-                
-                // NEW: Simulate pressing Enter to trigger validation
-                log(`Simulating Enter on: ${sel}`);
-                el.dispatchEvent(new KeyboardEvent('keydown', {
-                    key: 'Enter',
-                    keyCode: 13,
-                    code: 'Enter',
-                    which: 13,
-                    bubbles: true,
-                    cancelable: true
-                }));
-                
-                el.blur();
-                // Give it a moment to process the validation
-                await sleep(1500); 
-            };
-            // --- END FIX ---
+    // --- MASS ALLOCATION LOGIC ---
 
-            await setVal('input[id^="DEPTID\\$"]', "1863" + r.keywords[0]);
-            await setVal('input[id^="ACCOUNT\\$"]', r.keywords[1]);
+    async function runMassAllocation(receipts) {
+        log(">>> STARTING MASS ALLOCATION PHASE <<<");
 
-            // Wait for any potential validation scripts to finish after the last 'Enter'
-            await sleep(2000);
+        // 1. Group receipts by Account Key (DeptSuffix + AccountCode)
+        const groups = {};
+        for (const r of receipts) {
+            if (r.keywords && r.keywords.length >= 2) {
+                // Key format: "400-5170" (DeptSuffix-Account)
+                const key = `${r.keywords[0]}-${r.keywords[1]}`;
+                if (!groups[key]) groups[key] = [];
+                groups[key].push(r);
+            } else {
+                log(`Skipping allocation for ${r.lineItem} - Missing keywords`);
+            }
+        }
 
-            (await waitForElement("a#DONE_PB", ad)).click();
+        const keys = Object.keys(groups);
+        if (keys.length === 0) { log("No accounting keywords found."); return; }
+
+        for (const key of keys) {
+            const groupReceipts = groups[key];
+            const deptSuffix = groupReceipts[0].keywords[0];
+            const accountCode = groupReceipts[0].keywords[1];
+
+            log(`Allocating Group: Dept 1863${deptSuffix} | Acct ${accountCode} | Count: ${groupReceipts.length}`);
+
+            await performSingleMassAllocation(groupReceipts, deptSuffix, accountCode);
+
+            // Wait for main page refresh before next group
             await sleep(4000);
         }
-        log(`<<< Done: ${r.lineItem}`);
+    }
+
+    async function performSingleMassAllocation(groupReceipts, deptSuffix, accountCode) {
+        // 1. Open Mass Allocate Modal
+        const iframes = document.querySelectorAll('iframe').length;
+
+        // Try finding the button on the main document or active iframe
+        let massBtn = document.querySelector("a#EX_SHEET_FL_WRK_MASS_CHANGE_PB");
+        if (!massBtn) {
+            // Check existing iframes if button not on top
+            const frames = document.querySelectorAll('iframe');
+            for(let f of frames) {
+                 massBtn = f.contentDocument?.querySelector("a#EX_SHEET_FL_WRK_MASS_CHANGE_PB");
+                 if(massBtn) break;
+            }
+        }
+
+        if (!massBtn) {
+             log("Cannot find Mass Allocate button!");
+             return;
+        }
+
+        massBtn.click();
+
+        // 2. Wait for Modal
+        const frame = await findNewestIframe(iframes);
+        const doc = frame.contentDocument;
+        await sleep(3000); // Wait for grid to render
+
+        // 3. Find Rows & Select Matches
+        const rows = doc.querySelectorAll("tr[id^='C_EX_DIST_DVW$0_row']");
+        let matchesFound = 0;
+
+        for (const row of rows) {
+            // Extract Data from Row
+            const amountEl = row.querySelector("span[id^='C_EX_DIST_DVW_TXN_AMOUNT']");
+            const descEl = row.querySelector("p[id^='C_EX_DIST_DVW_DESCR254']");
+
+            if (!amountEl || !descEl) continue;
+
+            const rowAmount = parseFloat(amountEl.textContent.replace(/,/g, ''));
+            const rowDesc = descEl.textContent.trim();
+
+            // Check if this row matches ANY receipt in our current group
+            // We match by Description (which we set earlier) AND Amount
+            const isMatch = groupReceipts.some(r =>
+                Math.abs(r.value - rowAmount) < 0.01 &&
+                rowDesc === r.lineItem
+            );
+
+            if (isMatch) {
+                const checkbox = row.querySelector("input[type='checkbox']");
+                if (checkbox && !checkbox.checked) {
+                    checkbox.click();
+                    matchesFound++;
+                    log(`Selected row: ${rowDesc} (${rowAmount})`);
+                }
+            }
+        }
+
+        // 4. Fill Data OR Cancel
+        if (matchesFound > 0) {
+            log(`Matches selected: ${matchesFound}. Filling data...`);
+
+            // Helper for inputs
+            const setVal = async (sel, val) => {
+                const el = await waitForElement(sel, doc);
+                el.focus();
+                el.value = val;
+                el.dispatchEvent(new Event('change', { bubbles: true }));
+                // Simulate Enter for validation
+                el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+                await sleep(1500);
+                el.blur();
+                await sleep(1000);
+            };
+
+            await setVal('input#C_EX_MASSUPD_VW_DEPTID\\$0', "1863" + deptSuffix);
+            await setVal('input#C_EX_MASSUPD_VW_ACCOUNT\\$0', accountCode);
+
+            log("Clicking Apply...");
+            const applyBtn = await waitForElement('a#C_EX_MASSUPD_WK_PB_APPLY', doc);
+            applyBtn.click();
+
+            // Wait for processing loop to finish
+            await sleep(5000);
+
+        } else {
+            log("No matching rows found for this group in Mass Allocate window. Cancelling...");
+
+            // Click Cancel to close modal without errors
+            const cancelBtn = doc.querySelector('a#C_EX_MASSUPD_WK_PB_CANCEL');
+            if (cancelBtn) cancelBtn.click();
+            else {
+                // If Cancel isn't standard, try closing via OK (fallback)
+                const okBtn = doc.querySelector('a#\\#ICOK'); // Note: escaped ID
+                if (okBtn) okBtn.click();
+            }
+        }
     }
 
     createUI();
