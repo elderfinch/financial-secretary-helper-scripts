@@ -1,11 +1,12 @@
 // ==UserScript==
 // @name         M-Pesa CSV Extractor
-// @namespace    https://openai.com
-// @version      1.7
+// @version      1.8
 // @description  Extracts M-Pesa messages into a CSV of transactions
 // @match        https://messages.google.com/web/*
 // @grant        none
 // @run-at       document-idle
+// @downloadURL https://update.greasyfork.org/scripts/544746/M-Pesa%20CSV%20Extractor.user.js
+// @updateURL https://update.greasyfork.org/scripts/544746/M-Pesa%20CSV%20Extractor.meta.js
 // ==/UserScript==
 
 (function () {
@@ -162,6 +163,9 @@
             .filter(Boolean);
 
         const rows = [];
+
+        console.log("captured the following messages:")
+        console.log(rawMessages)
 
         for (const message of rawMessages) {
             const dateMatch = message.match(/Received on (.+?) at/);
@@ -326,6 +330,27 @@
                 ]);
                 continue;
             }
+
+            // --- NEW LOGIC: CREDIT (AIRTIME) PURCHASE ---
+            const creditBuy = message.match(
+                /Confirmado\s+([A-Z0-9]{11,12})[\s\S]*?Compraste\s+([\d,]+\.\d{2})MT\s+de\s+credito\s+para\s+o\s+numero\s+(\d+)[\s\S]*?aos\s+(\d{1,2})\/(\d{1,2})\/(\d{2})[\s\S]*?saldo M-Pesa e\s+(?:de\s+)?([\d,]+\.\d{2})MT/i
+            );
+
+            if (creditBuy) {
+                const [_, code, value, phone, day, month, year, balance] = creditBuy;
+                const formattedDate = `${day.padStart(2, '0')}/${month.padStart(2, '0')}/20${year}`;
+                rows.push([
+                    rows.length + 1,
+                    code,
+                    normalizeAmount(value),
+                    formattedDate,
+                    '0.00', // Fees are usually 0 for airtime
+                    normalizePhoneNumber(phone),
+                    normalizeAmount(balance)
+                ]);
+                continue;
+            }
+            // ---------------------------------------------
 
         }
 
