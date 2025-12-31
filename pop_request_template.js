@@ -1,12 +1,14 @@
 // ==UserScript==
-// @name         IMOS POP Request Generator
+// @name         IMOS POP Request Generator (Mailto)
 // @namespace    http://tampermonkey.net/
-// @version      1.0
-// @description  Adds a floating flamingo to generate "POP Request" and "POP Details" buttons on the IMOS payment history table.
+// @version      1.1
+// @description  Adds a floating flamingo. "POP Details" copies to clipboard. "POP Email" opens your email client.
 // @author       You
 // @match        https://imos.churchofjesuschrist.org/vendor-management/*
 // @grant        GM_setClipboard
 // @grant        GM_addStyle
+// @downloadURL  https://update.greasyfork.org/scripts/557658/IMOS%20POP%20Request%20Generator.user.js
+// @updateURL    https://update.greasyfork.org/scripts/557658/IMOS%20POP%20Request%20Generator.meta.js
 // ==/UserScript==
 
 (function() {
@@ -105,7 +107,7 @@
         const flamingo = document.createElement('div');
         flamingo.id = 'imos-flamingo-btn';
         flamingo.innerHTML = '🦩';
-        flamingo.title = 'POP Request Generator'; // <--- UPDATED HERE
+        flamingo.title = 'POP Request Generator';
         document.body.appendChild(flamingo);
 
         flamingo.addEventListener('click', function() {
@@ -147,7 +149,7 @@
                 btnReq.innerText = 'POP Email';
                 btnReq.className = 'pop-btn pop-request-btn';
                 btnReq.type = 'button';
-                btnReq.title = 'Copy Full Email Template';
+                btnReq.title = 'Open Email Client';
                 btnReq.addEventListener('click', function(e) {
                     e.stopPropagation();
                     e.preventDefault();
@@ -203,7 +205,7 @@
         }
     }
 
-    // --- Generate Text (Handles both modes) ---
+    // --- Generate Text or Mailto ---
     function generateText(row, btnElement, mode) {
         // Helper to safely get text
         const getText = (selector) => {
@@ -219,8 +221,6 @@
         const currency = getText('.currency-code-gross');
         const vendorName = getVendorDetails();
 
-        let finalString = '';
-
         // --- Data Block ---
         const dataBlock = `Reference Num: ${refNum}
 Created Date: ${createdDate}
@@ -229,16 +229,25 @@ Paid Date: ${paidDate}
 Amount: ${amountVal} ${currency}`;
 
         if (mode === 'details') {
-            // Just the data block
-            finalString = dataBlock;
+            // --- MODE 1: Just Copy Details ---
+            GM_setClipboard(dataBlock);
+
+            // Visual Feedback
+            const originalText = btnElement.innerText;
+            btnElement.innerText = 'Copied!';
+            btnElement.style.backgroundColor = '#4CAF50'; // Green
+
+            setTimeout(() => {
+                btnElement.innerText = originalText;
+                btnElement.style.backgroundColor = '';
+            }, 1500);
+
         } else {
-            // Full Email
-            finalString = `POP EMAIL: "AFSProofofPayment" <AFSProofofPayment@churchofjesuschrist.org>
+            // --- MODE 2: Open Email Client ---
+            const toEmail = "AFSProofofPayment@churchofjesuschrist.org";
+            const subject = `POP Request - ${vendorName}`;
 
-Email Subject Line:
-POP Request - ${vendorName}
-
-To whom it may concern,
+            const emailBody = `To whom it may concern,
 
 Please find attached the information needed for our POP request:
 
@@ -247,22 +256,23 @@ ${dataBlock}
 (screenshot of IMOS)
 
 Regards,`;
+
+            // Create Mailto Link using encoding to handle spaces and newlines
+            const mailtoLink = `mailto:${toEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`;
+
+            // Trigger the link
+            window.location.href = mailtoLink;
+
+             // Visual Feedback
+            const originalText = btnElement.innerText;
+            btnElement.innerText = 'Emailing...';
+            btnElement.style.backgroundColor = '#4CAF50'; // Green
+
+            setTimeout(() => {
+                btnElement.innerText = originalText;
+                btnElement.style.backgroundColor = '';
+            }, 1500);
         }
-
-        // Copy to clipboard
-        GM_setClipboard(finalString);
-
-        // Visual Feedback
-        const originalText = btnElement.innerText;
-        btnElement.innerText = 'Copied!';
-        // Change color temporarily based on mode
-        const originalColor = mode === 'details' ? '#e67e22' : '#008CBA';
-        btnElement.style.backgroundColor = '#4CAF50'; // Green
-
-        setTimeout(() => {
-            btnElement.innerText = originalText;
-            btnElement.style.backgroundColor = ''; // Revert to CSS class style
-        }, 1500);
     }
 
     // --- Initialize ---
