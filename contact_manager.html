@@ -127,7 +127,7 @@
                                 </div>
                                 <div class="dropdown-menu" id="column-toggle-menu" role="menu">
                                     <div class="dropdown-content" id="column-toggle-container">
-                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1028,10 +1028,17 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- EXPORT LOGIC ---
     function getExportContacts(data = missionaryData) {
         return data.map(m => {
+            // Check if the position exists and is in the leadership list
+            // We split by '/' just in case it's a combined row (e.g. "ZL/ZL") to see if any match
+            const currentPositions = (m.position || '').split('/');
+            const isLeadership = currentPositions.some(p => LEADERSHIP_POSITIONS.includes(p.trim()));
+            
+            const positionSuffix = isLeadership ? ` (${m.position})` : '';
+
             return {
                 firstName: m.name, 
                 middleName: '|',
-                lastName: `${m.area} [${m.zone}]`,
+                lastName: `${m.area} [${m.zone}]${positionSuffix}`,
                 phone: m.selectedPhone
             };
         });
