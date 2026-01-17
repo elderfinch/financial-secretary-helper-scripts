@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         M-Pesa CSV Extractor
-// @version      1.8
+// @version      1.9
 // @description  Extracts M-Pesa messages into a CSV of transactions
 // @match        https://messages.google.com/web/*
 // @grant        none
@@ -239,22 +239,26 @@
                 continue;
             }
 
+            // *** UPDATED WITHDRAW (LEVANTAR) LOGIC ***
             const withdraw = message.match(
-                /Confirmado\s+([A-Z0-9]{11,12})[\s\S]*?Aos\s+(\d{1,2})\/(\d{1,2})\/(\d{2})[\s\S]*?levantaste\s+([\d,]+\.\d{2})MT[\s\S]*?taxa\s+foi\s+de\s+([\d,]+\.\d{2})MT/i
+                /Confirmado\s+([A-Z0-9]{11,12})[\s\S]*?Aos\s+(\d{1,2})\/(\d{1,2})\/(\d{2})[\s\S]*?levantaste\s+([\d,]+\.\d{2})MT[\s\S]*?saldo M-Pesa e de\s+([\d,]+\.\d{2})MT[\s\S]*?taxa\s+foi\s+de\s+([\d,]+\.\d{2})MT/i
             );
 
             if (withdraw) {
-                const [_, code, day, month, year, value, fee] = withdraw;
+                const [_, code, day, month, year, value, balance, fee] = withdraw;
                 const formattedDate = `${day.padStart(2, '0')}/${month.padStart(2, '0')}/20${year}`;
                 rows.push([
                     rows.length + 1,
                     code,
                     normalizeAmount(value),
                     formattedDate,
-                    normalizeAmount(fee)
+                    normalizeAmount(fee),
+                    'N/A', // Phone number set to N/A for withdrawals
+                    normalizeAmount(balance)
                 ]);
                 continue;
             }
+            // *****************************************
 
             const compra = message.match(
                 /Confirmado\s+([A-Z0-9]{11,12})[\s\S]*?operacao de compra[\s\S]*?([\d,]+\.\d{2})MT[\s\S]*?aos\s+(\d{1,2})\/(\d{1,2})\/(\d{2})[\s\S]*?saldo M-Pesa e de\s+([\d,]+\.\d{2})MT/i
